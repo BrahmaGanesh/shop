@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function role() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+    function isOwner() { return signedIn() && role() == 'owner'; }
+    function isStaff() { return signedIn() && (role() == 'owner' || role() == 'staff'); }
+
+    // Roles are assigned only with the Admin SDK (scripts/admin-setup.mjs) or backend functions.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isOwner());
+      allow write: if false;
+    }
+
+    // Public customers can read ONLY active products. Query must include where('status','==','active').
+    function validProduct(d) {
+      return d.nameEnglish is string && d.nameEnglish.size() > 0 && d.nameEnglish.size() < 200
+        && d.status in ['active', 'inactive', 'archived']
+        && (d.mrp == null || (d.mrp is number && d.mrp >= 0))
+        && (d.sellingPrice == null || (d.sellingPrice is number && d.sellingPrice >= 0));
+    }
+    match /products/{id} {
+      allow read: if resource.data.status == 'active' || isStaff();
+      allow create, update: if isOwner() && validProduct(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    // Append-only admin activity log (no edits or deletes from the browser).
+    match /activity/{id} {
+      allow read: if isOwner();
+      allow create: if isStaff() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Purchase price and other private fields live here, never in the public product document.
+    match /productsPrivate/{id} {
+      allow read, write: if isOwner();
+    }
+
+    match /categories/{id} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+    match /machines/{id} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+
+    // Backups are stored as small parts (Firestore documents are limited to 1 MB). Owner only.
+    match /backups/{id} {
+      allow read, create, delete: if isOwner();
+      allow update: if false;
+      match /parts/{part} {
+        allow read, create, delete: if isOwner();
+        allow update: if false;
+      }
+    }
+    match /dataLogs/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Invoices and stock history are written ONLY by the backend functions (they bypass these rules).
+    // Staff can read only the invoices they created; the owner can read all.
+    match /invoices/{id} {
+      allow read: if isOwner() || (isStaff() && resource.data.createdBy == request.auth.uid);
+      allow write: if false;
+    }
+    match /stockHistory/{id} {
+      allow read: if isOwner();
+      allow write: if false;
+    }
+
+    // Everything else (counters, idempotency records, stock history, backups) is denied to clients.
+    // Phase 5 will write these only through backend functions.
+  }
+}
