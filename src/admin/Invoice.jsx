@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { Capacitor } from '@capacitor/core';
+import { Printer } from '@capgo/capacitor-printer';
 import { money2 } from '../lib';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -25,7 +27,7 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
   const isThermal = format === 'thermal' || format === 'thermal110';
   const now = liveNow();
   const sizeNo = (i) => [i.size, i.productNumber].filter(Boolean).join(' / ');
-  
+
   const upiLink = `upi://pay?pa=${SHOP.upiId}&pn=${encodeURIComponent(SHOP.name)}&am=${inv.total}&cu=INR&tn=${encodeURIComponent('Bill ' + inv.invoiceNo)}`;
 
   return (
@@ -89,11 +91,11 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
                 <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{i.qty}</td>
                 <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
                   {editable && onUpdateLine ? (
-                    <input 
-                      type="number" 
-                      min="0" 
+                    <input
+                      type="number"
+                      min="0"
                       step="any"
-                      value={i.unitPrice} 
+                      value={i.unitPrice}
                       onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })}
                       style={{ width: '85%', textAlign: 'center', fontWeight: 'bold', padding: '4px', border: '1px solid #00337a', borderRadius: '4px' }}
                     />
@@ -124,11 +126,11 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
               <div className="th-qty">{i.qty}</div>
               <div className="th-price">
                 {editable && onUpdateLine ? (
-                  <input 
-                    type="number" 
-                    min="0" 
+                  <input
+                    type="number"
+                    min="0"
                     step="any"
-                    value={i.unitPrice} 
+                    value={i.unitPrice}
                     onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })}
                     style={{ width: '55px', textAlign: 'right', fontWeight: 'bold', padding: '2px', border: '1px solid #000', borderRadius: '2px' }}
                   />
@@ -190,7 +192,7 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
           <div className="inv-ft-thanks"><b>Thank You! Visit Again.</b></div>
           <div className="inv-ft-name">{SHOP.name}</div>
         </div>
-        
+
         <div className="inv-ft-qr">
           <QRCodeSVG value={upiLink} size={isThermal ? 50 : 70} level="M" />
           <div className="inv-qr-text">Scan to Pay (UPI)</div>
@@ -217,15 +219,34 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
   const [waPhone, setWaPhone] = useState(inv.customer?.phone || '');
   const ref = useRef(null);
 
-  const print = (f) => { setFormat(f); setTimeout(() => { pageStyle(f); window.print(); }, 200); };
+  // --- HYBRID PRINT LOGIC (Web + APK) ---
+  const print = async (f) => {
+    setFormat(f);
+    // Give the UI a split second to switch the format before printing
+    setTimeout(async () => {
+      pageStyle(f);
+
+      if (Capacitor.isNativePlatform()) {
+        // Running inside Android APK
+        try {
+          await Printer.printWebView();
+        } catch (error) {
+          console.error(error);
+          alert("Printing failed. Please ensure your printer is connected.");
+        }
+      } else {
+        // Running in normal Web Browser
+        window.print();
+      }
+    }, 200);
+  };
 
   const handleWhatsApp = (e) => {
     e.preventDefault();
     let cleanPhone = waPhone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone; 
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return alert("Please enter a valid 10-digit number.");
 
-    // Build a beautiful text receipt
     let msg = `*${inv.shop.name}*\n`;
     msg += `${inv.shop.address || ''}\n`;
     if (inv.shop.phone) msg += `Ph: ${inv.shop.phone}\n`;
@@ -234,13 +255,12 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     msg += `*Date:* ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}\n`;
     if (inv.customer?.name) msg += `*Customer:* ${inv.customer.name}\n`;
     msg += `---------------------------------\n\n`;
-    
-    // Loop through items
+
     inv.items.forEach((item, index) => {
       msg += `${index + 1}. *${item.nameEnglish}*`;
       if (item.nameTelugu) msg += ` / ${item.nameTelugu}`;
       msg += `\n`;
-      
+
       const size = [item.size, item.productNumber].filter(Boolean).join(' / ');
       if (size) msg += `   Size: ${size}\n`;
       msg += `   Qty: ${item.qty} x ₹${money2(item.unitPrice).replace('₹', '')} = *₹${money2(item.amount).replace('₹', '')}*\n\n`;
@@ -254,7 +274,6 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     msg += `---------------------------------\n\n`;
     msg += `Thank you for your business!\nVisit Again.`;
 
-    // Open WhatsApp
     const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
     setWaOpen(false);
@@ -282,7 +301,7 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
 
   return (
     <div className="inv-page">
-      
+
       {/* CUSTOM WHATSAPP MODAL */}
       {waOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -290,11 +309,11 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
             <h3 style={{ margin: 0, color: '#00337a' }}>Send to WhatsApp</h3>
             <label style={{ display: 'grid', gap: 4, fontWeight: 'bold' }}>
               10-digit Mobile Number
-              <input 
-                type="tel" 
-                value={waPhone} 
-                onChange={(e) => setWaPhone(e.target.value)} 
-                placeholder="e.g. 9640254545" 
+              <input
+                type="tel"
+                value={waPhone}
+                onChange={(e) => setWaPhone(e.target.value)}
+                placeholder="e.g. 9640254545"
                 style={{ padding: 10, border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }}
                 autoFocus
               />
@@ -316,8 +335,7 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
           <button className="a-btn" onClick={() => print('thermal110')}>🧾 Thermal 110 mm</button>
           <button className="a-btn" onClick={() => print('thermal')}>🧾 Thermal 80 mm</button>
           <button className="a-btn" disabled={busy} onClick={pdf}>{busy ? 'Preparing…' : `⬇️ PDF (${format})`}</button>
-          
-          {/* WHATSAPP BUTTON */}
+
           <button 
             className="a-btn" 
             style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} 

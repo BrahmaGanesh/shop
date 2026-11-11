@@ -12,6 +12,10 @@
     "make-staff": "node scripts/admin-setup.mjs staff"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capgo/capacitor-printer": "^8.1.9",
     "firebase": "^10.14.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
