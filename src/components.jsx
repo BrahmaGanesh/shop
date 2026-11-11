@@ -3,20 +3,22 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useApp } from './context';
 import { maxQty, money, searchProducts, stockInfo, unitPrice } from './lib';
 
+import logoImg from './assets/logo.png';
+
 export function Logo({ size = 34 }) {
+  // If you want it to be a perfect circle, keep borderRadius: '50%'. 
+  // If you want the original square/rectangle shape, remove borderRadius.
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r="19" fill="#f4b400" />
-      <g fill="#1c2b36">
-        {[0, 60, 120, 180, 240, 300].map((r) => (
-          <path key={r} transform={`rotate(${r} 20 20)`} d="M20 20 L20 5 Q27 6 28 13 Q23 11 20 20Z" />
-        ))}
-        <circle cx="20" cy="20" r="4" />
-      </g>
-      <circle cx="20" cy="20" r="1.6" fill="#f4b400" />
-    </svg>
+    <img 
+      src={logoImg} 
+      alt="Logo" 
+      width={size} 
+      height={size} 
+      style={{ objectFit: 'contain', borderRadius: '8px' }} 
+    />
   );
 }
+
 const CartIcon = () => (
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <circle cx="9" cy="20" r="1.5" /><circle cx="18" cy="20" r="1.5" /><path d="M2 3h3l2.5 11.5a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L21 7H6" />
@@ -124,9 +126,14 @@ export function StockTag({ p }) {
 }
 
 export function ProductCard({ p }) {
-  const { t, addToCart } = useApp();
+  const { t, addToCart, items, setQty, removeItem } = useApp();
   const out = stockInfo(p) === 'out';
   const sizeText = [p.size, p.productNumber].filter(Boolean).join(' / ');
+  
+  // Check if this product is already in the cart
+  const cartItem = items.find((i) => i.id === p.id);
+  const cartQty = cartItem ? cartItem.qty : 0;
+
   return (
     <article className="card">
       <Link to={`/product/${p.id}`} className="card-img"><Photo p={p} /></Link>
@@ -137,7 +144,21 @@ export function ProductCard({ p }) {
         {sizeText && <p className="meta">{t('size')}: {sizeText}</p>}
         <PriceBlock p={p} />
         <StockTag p={p} />
-        <button className="btn" disabled={out} onClick={() => addToCart(p)}>{t('addToCart')}</button>
+        
+        {cartQty > 0 ? (
+          <div className="qty" style={{ marginTop: 'auto', width: '100%', justifyContent: 'space-between' }}>
+            <button 
+              onClick={() => cartQty === 1 ? removeItem(p.id) : setQty(p.id, cartQty - 1)} 
+              aria-label="−"
+            >
+              −
+            </button>
+            <span>{cartQty}</span>
+            <button onClick={() => setQty(p.id, cartQty + 1)} disabled={cartQty >= maxQty(p)} aria-label="+">+</button>
+          </div>
+        ) : (
+          <button className="btn" disabled={out} onClick={() => addToCart(p)}>{t('addToCart')}</button>
+        )}
       </div>
     </article>
   );
@@ -159,8 +180,11 @@ export function Qty({ value, onChange, max = 999 }) {
 
 export function CartLine({ line }) {
   const { t, setQty, removeItem } = useApp();
-  const { product: p, qty } = line;
-  const u = unitPrice(p);
+  const { product: p, qty, customPrice } = line;
+  
+  // Use the custom price if the user typed one, otherwise use the default
+  const u = customPrice !== undefined && customPrice !== '' ? Number(customPrice) : unitPrice(p);
+
   return (
     <div className="line">
       <div className="line-img"><Photo p={p} /></div>

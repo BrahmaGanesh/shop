@@ -7,7 +7,7 @@ import { useAdmin } from './admin/AdminShell';
 import { Invoice } from './admin/Invoice';
 import { buildDraftInvoice } from './billFromCart';
 import { CartLine, Grid, Loading, Logo, Photo, PriceBlock, ProductCard, Qty, StockTag, Totals } from './components';
-import { maxQty, searchProducts, stockInfo, unitPrice } from './lib';
+import { maxQty, searchProducts, stockInfo, unitPrice, money2 } from './lib';
 
 const nameOf = (c, lang) => (lang === 'te' && c.nameTelugu ? c.nameTelugu : c.nameEnglish);
 
@@ -237,28 +237,73 @@ const printPageStyle = (fmt) => {
 
 export function CartPage() {
   const { lines, loaded, t } = useApp();
-  const { settings } = useAdmin();              // provided by SettingsBridge in App.jsx
-  const [view, setView] = useState('cart');     // 'cart' | 'bill'
+  const { settings } = useAdmin();              
+  const [view, setView] = useState('cart');     
   const [printFmt, setPrintFmt] = useState('a5');
   const [draft, setDraft] = useState(null);
+  
+  const [draftLines, setDraftLines] = useState([]);
+  const [dType, setDType] = useState('percent');
+  const [dVal, setDVal] = useState('');
 
-  // Rebuild the draft whenever the cart or settings change while previewing,
-  // so the totals on screen are always exactly the live cart total.
   useEffect(() => {
-    if (view !== 'bill') return;
-    setDraft(buildDraftInvoice(lines, settings));
-  }, [view, lines, settings]);
-
-  // Leaving the preview back to the cart clears the draft.
-  useEffect(() => {
-    if (view === 'cart') setDraft(null);
+    if (view === 'bill') {
+      setDraftLines(JSON.parse(JSON.stringify(lines)));
+    }
   }, [view]);
+
+  useEffect(() => {
+    if (view === 'bill') {
+      setDraft(buildDraftInvoice(draftLines, settings, { type: dType, value: Number(dVal) || 0 }));
+    }
+  }, [view, draftLines, settings, dType, dVal]);
+
+  const updateDraftLine = (id, updates) => {
+    setDraftLines(prev => prev.map(l => l.product.id === id ? { ...l, ...updates } : l));
+  };
 
   const doPrint = () => { printPageStyle(printFmt); setTimeout(() => window.print(), 100); };
 
+  // --- WHATSAPP LOGIC (Fixed Popup Blocker) ---
+  const sendWhatsApp = () => {
+    let phone = window.prompt("Enter customer's WhatsApp number (with country code, e.g., 919640254545):");
+    if (!phone) return; 
+    
+    let cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 10) return alert("Please enter a valid phone number.");
+
+    let msg = `*${draft.shop.name}*\n`;
+    msg += `${draft.shop.address || ''}\n`;
+    if (draft.shop.phone) msg += `Ph: ${draft.shop.phone}\n`;
+    msg += `---------------------------------\n`;
+    msg += `*Bill No:* ${draft.invoiceNo}\n`;
+    msg += `*Date:* ${new Date().toLocaleDateString('en-IN')}\n`;
+    msg += `---------------------------------\n\n`;
+    
+    draft.items.forEach((item, index) => {
+      msg += `${index + 1}. *${item.nameEnglish}*\n`;
+      msg += `   Qty: ${item.qty} x ₹${money2(item.unitPrice).replace('₹', '')} = *₹${money2(item.amount).replace('₹', '')}*\n\n`;
+    });
+
+    msg += `---------------------------------\n`;
+    msg += `Subtotal: ₹${money2(draft.subtotal).replace('₹', '')}\n`;
+    if (draft.discount > 0) msg += `Discount: -₹${money2(draft.discount).replace('₹', '')}\n`;
+    msg += `*GRAND TOTAL: ₹${money2(draft.total).replace('₹', '')}*\n`;
+    msg += `---------------------------------\n\n`;
+    msg += `Thank you for shopping with us!`;
+
+    const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
+    
+    // Fallback to window.location to bypass popup blockers in some browsers
+    const win = window.open(url, '_blank');
+    if (!win) {
+      window.location.href = url;
+    }
+  };
+
   if (!loaded) return <div className="wrap narrow"><Loading /></div>;
 
-  // -------- CART --------
+  // -------- CART VIEW --------
   if (view === 'cart') {
     if (lines.length === 0) return (
       <div className="wrap narrow">
@@ -271,6 +316,19 @@ export function CartPage() {
       <div className="wrap narrow">
         <h1>{t('cart')}</h1>
         {lines.map((l) => <CartLine key={l.product.id} line={l} />)}
+        
+        <div className="cols" style={{ marginTop: 15 }}>
+          <label>Discount
+            <span className="row">
+              <select value={dType} onChange={(e) => setDType(e.target.value)}>
+                <option value="percent">%</option>
+                <option value="amount">₹</option>
+              </select>
+              <input type="number" min="0" step="any" value={dVal} onChange={(e) => setDVal(e.target.value)} placeholder="0" />
+            </span>
+          </label>
+        </div>
+
         <Totals />
         <p className="note">{t('cartNote')}</p>
         <div className="row" style={{ marginTop: 10 }}>
@@ -287,15 +345,8 @@ export function CartPage() {
     );
   }
 
-  // -------- BILL PREVIEW --------
-  if (!draft) {
-    return (
-      <div className="wrap narrow">
-        <p className="empty">{t('emptyCart')}</p>
-        <p className="center"><button className="btn ghost" onClick={() => setView('cart')}>← Back to cart</button></p>
-      </div>
-    );
-  }
+  // -------- BILL PREVIEW VIEW --------
+  if (!draft) return null;
 
   return (
     <div className="wrap">
@@ -304,9 +355,8 @@ export function CartPage() {
           <h1>Bill preview</h1>
           <button className="a-btn" onClick={() => setView('cart')}>← Back to cart</button>
         </div>
-        <p className="note">
-          This is a <b>draft bill</b> for checking. Show it at the counter — the shop will issue the final invoice with the official bill number when you pay.
-        </p>
+        <p className="note">Click any price to edit it for this bill. This will not change the product's actual price in the shop.</p>
+        
         <div className="row" style={{ marginBottom: 8 }}>
           <div className="seg2">
             {[['a4', 'A4'], ['a5', 'A5'], ['thermal110', '110 mm'], ['thermal', '80 mm']].map(([f, l]) => (
@@ -314,12 +364,30 @@ export function CartPage() {
             ))}
           </div>
           <button className="a-btn primary" onClick={doPrint}>🖨️ PRINT BILL</button>
+          
+          {/* WHATSAPP BUTTON FOR CART */}
+          <button 
+            className="a-btn" 
+            style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} 
+            onClick={sendWhatsApp}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: 6 }}>
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            Send WhatsApp
+          </button>
+
           <button className="a-btn" onClick={() => setView('cart')}>Edit cart</button>
         </div>
       </div>
 
       <div className="inv-wrap">
-        <Invoice inv={draft} format={printFmt} />
+        <Invoice 
+          inv={draft} 
+          format={printFmt} 
+          editable={true} 
+          onUpdateLine={updateDraftLine} 
+        />
       </div>
     </div>
   );

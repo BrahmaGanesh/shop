@@ -13,19 +13,21 @@ const draftNo = () => {
  * Build an invoice-shaped object from the current cart, using the shop settings
  * already loaded by the admin context. No writes, no Firestore, no Function call.
  *
- * `lines`   : [{ product, qty }] from useApp()
+ * `lines`   : [{ product, qty, customPrice }] from useApp()
  * `settings`: settings object from useAdmin() (already merged with DEFAULT_SETTINGS)
- * `customer`: { name, phone } — optional; printed if provided
+ * `discount`: { type: 'percent' | 'amount', value: Number } from the cart
  */
-export function buildDraftInvoice(lines, settings = DEFAULT_SETTINGS, customer = {}) {
+export function buildDraftInvoice(lines, settings = DEFAULT_SETTINGS, discount = { type: 'amount', value: 0 }, customer = {}) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const safeLines = lines.filter((l) => l.product && l.qty > 0);
   if (!safeLines.length) return null;
 
-  const price = (p) => unitPrice(p) ?? 0;
+  // If a custom price was set for this cart line, use it. Otherwise fallback to the default price.
+  const price = (l) => (l.customPrice !== undefined && l.customPrice !== '') ? Number(l.customPrice) : (unitPrice(l.product) ?? 0);
   
-  const items = safeLines.map(({ product: p, qty }) => {
-    const up = price(p);
+  const items = safeLines.map((l) => {
+    const p = l.product;
+    const up = price(l);
     return {
       productId: p.id,
       nameEnglish: p.nameEnglish || '',
@@ -33,10 +35,10 @@ export function buildDraftInvoice(lines, settings = DEFAULT_SETTINGS, customer =
       brand: p.brand || '',
       size: p.size || '',
       productNumber: p.productNumber || '',
-      qty,
+      qty: l.qty,
       unitPrice: up,
       mrp: p.mrp ?? null,
-      amount: +(up * qty).toFixed(2),
+      amount: +(up * l.qty).toFixed(2),
       // No discount / tax is applied line-by-line here — calcBill below
       // distributes the whole-bill discount and tax across the lines.
       discount: 0,
@@ -49,8 +51,8 @@ export function buildDraftInvoice(lines, settings = DEFAULT_SETTINGS, customer =
   });
 
   const calc = calcBill({
-    lines: safeLines.map(({ product: p, qty }) => ({ qty, unitPrice: price(p), taxRate: p.taxRate ?? undefined })),
-    discount: { type: 'amount', value: 0 },
+    lines: safeLines.map((l) => ({ qty: l.qty, unitPrice: price(l), taxRate: l.product.taxRate ?? undefined })),
+    discount: discount, // PASS THE CUSTOM DISCOUNT HERE
     settings: s,
   });
 
@@ -80,7 +82,7 @@ export function buildDraftInvoice(lines, settings = DEFAULT_SETTINGS, customer =
     items,
     subtotal: calc.subtotal,
     discount: calc.discount,
-    discountInput: { type: 'amount', value: 0 },
+    discountInput: discount, // Show the discount label on the bill
     tax: calc.tax,
     taxMode: calc.taxMode,
     roundOff: calc.roundOff,

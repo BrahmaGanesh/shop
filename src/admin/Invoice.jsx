@@ -21,7 +21,7 @@ const SHOP = {
   upiId: 'YOUR_UPI_ID_HERE', // ⚠️ Change this to your real UPI ID
 };
 
-export function Invoice({ inv, format, nodeRef }) {
+export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }) {
   const isThermal = format === 'thermal' || format === 'thermal110';
   const now = liveNow();
   const sizeNo = (i) => [i.size, i.productNumber].filter(Boolean).join(' / ');
@@ -88,7 +88,18 @@ export function Invoice({ inv, format, nodeRef }) {
                 </td>
                 <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{i.qty}</td>
                 <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                  ₹{money2(i.unitPrice).replace('₹', '')}
+                  {editable && onUpdateLine ? (
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="any"
+                      value={i.unitPrice} 
+                      onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })}
+                      style={{ width: '85%', textAlign: 'center', fontWeight: 'bold', padding: '4px', border: '1px solid #00337a', borderRadius: '4px' }}
+                    />
+                  ) : (
+                    `₹${money2(i.unitPrice).replace('₹', '')}`
+                  )}
                 </td>
               </tr>
             ))}
@@ -111,7 +122,20 @@ export function Invoice({ inv, format, nodeRef }) {
                 {sizeNo(i) ? <div className="th-size">Size: <b>{sizeNo(i)}</b></div> : null}
               </div>
               <div className="th-qty">{i.qty}</div>
-              <div className="th-price">₹{money2(i.amount).replace('₹', '')}</div>
+              <div className="th-price">
+                {editable && onUpdateLine ? (
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="any"
+                    value={i.unitPrice} 
+                    onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })}
+                    style={{ width: '55px', textAlign: 'right', fontWeight: 'bold', padding: '2px', border: '1px solid #000', borderRadius: '2px' }}
+                  />
+                ) : (
+                  `₹${money2(i.amount).replace('₹', '')}`
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -186,12 +210,53 @@ function pageStyle(format) {
     : '@page{size:80mm auto;margin:2mm}';
 }
 
-export default function InvoiceView({ inv, onNew, onBack }) {
+export default function InvoiceView({ inv, onNew, onBack, editable = false, onUpdateLine }) {
   const [format, setFormat] = useState('a4');
   const [busy, setBusy] = useState(false);
+  const [waOpen, setWaOpen] = useState(false);
+  const [waPhone, setWaPhone] = useState(inv.customer?.phone || '');
   const ref = useRef(null);
 
   const print = (f) => { setFormat(f); setTimeout(() => { pageStyle(f); window.print(); }, 200); };
+
+  const handleWhatsApp = (e) => {
+    e.preventDefault();
+    let cleanPhone = waPhone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone; 
+    if (cleanPhone.length < 10) return alert("Please enter a valid 10-digit number.");
+
+    let msg = `*${inv.shop.name}*\n`;
+    msg += `${inv.shop.address || ''}\n`;
+    if (inv.shop.phone) msg += `Ph: ${inv.shop.phone}\n`;
+    msg += `---------------------------------\n`;
+    msg += `*Bill No:* ${inv.invoiceNo}\n`;
+    msg += `*Date:* ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}\n`;
+    if (inv.customer?.name) msg += `*Customer:* ${inv.customer.name}\n`;
+    msg += `---------------------------------\n\n`;
+    
+    inv.items.forEach((item, index) => {
+      // Adds English Name AND Telugu Name to WhatsApp
+      msg += `${index + 1}. *${item.nameEnglish}*`;
+      if (item.nameTelugu) msg += ` / ${item.nameTelugu}`;
+      msg += `\n`;
+      
+      const size = [item.size, item.productNumber].filter(Boolean).join(' / ');
+      if (size) msg += `   Size: ${size}\n`;
+      msg += `   Qty: ${item.qty} x ₹${money2(item.unitPrice).replace('₹', '')} = *₹${money2(item.amount).replace('₹', '')}*\n\n`;
+    });
+
+    msg += `---------------------------------\n`;
+    msg += `Subtotal: ₹${money2(inv.subtotal).replace('₹', '')}\n`;
+    if (inv.discount > 0) msg += `Discount: -₹${money2(inv.discount).replace('₹', '')}\n`;
+    if (inv.tax > 0) msg += `Tax: ₹${money2(inv.tax).replace('₹', '')}\n`;
+    msg += `*GRAND TOTAL: ₹${money2(inv.total).replace('₹', '')}*\n`;
+    msg += `---------------------------------\n\n`;
+    msg += `Thank you for your business!\nVisit Again.`;
+
+    const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+    setWaOpen(false);
+  };
 
   const pdf = async () => {
     setBusy(true);
@@ -215,6 +280,33 @@ export default function InvoiceView({ inv, onNew, onBack }) {
 
   return (
     <div className="inv-page">
+      
+      {/* CUSTOM WHATSAPP MODAL */}
+      {waOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <form onSubmit={handleWhatsApp} style={{ background: '#fff', padding: 24, borderRadius: 12, width: '100%', maxWidth: 360, display: 'grid', gap: 12 }}>
+            <h3 style={{ margin: 0, color: '#00337a' }}>Send to WhatsApp</h3>
+            <label style={{ display: 'grid', gap: 4, fontWeight: 'bold' }}>
+              10-digit Mobile Number
+              <input 
+                type="tel" 
+                value={waPhone} 
+                onChange={(e) => setWaPhone(e.target.value)} 
+                placeholder="e.g. 9640254545" 
+                style={{ padding: 10, border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }}
+                autoFocus
+              />
+            </label>
+            <div className="row" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
+              <button type="button" className="a-btn" onClick={() => setWaOpen(false)}>Cancel</button>
+              <button type="submit" className="a-btn" style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }}>
+                Open WhatsApp
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div className="no-print">
         <div className="row">
           <button className="a-btn primary" onClick={() => print('a4')}>🖨️ Print A4</button>
@@ -222,6 +314,18 @@ export default function InvoiceView({ inv, onNew, onBack }) {
           <button className="a-btn" onClick={() => print('thermal110')}>🧾 Thermal 110 mm</button>
           <button className="a-btn" onClick={() => print('thermal')}>🧾 Thermal 80 mm</button>
           <button className="a-btn" disabled={busy} onClick={pdf}>{busy ? 'Preparing…' : `⬇️ PDF (${format})`}</button>
+          
+          {/* WHATSAPP BUTTON */}
+          <button 
+            className="a-btn" 
+            style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} 
+            onClick={() => setWaOpen(true)}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: 6 }}>
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            Send WhatsApp
+          </button>
         </div>
         <div className="row">
           <div className="seg2">
@@ -234,7 +338,9 @@ export default function InvoiceView({ inv, onNew, onBack }) {
           {onNew && <Link className="a-btn" to="/admin/bills">Billing history</Link>}
         </div>
       </div>
-      <div className="inv-wrap"><Invoice inv={inv} format={format} nodeRef={ref} /></div>
+      <div className="inv-wrap">
+        <Invoice inv={inv} format={format} nodeRef={ref} editable={editable} onUpdateLine={onUpdateLine} />
+      </div>
     </div>
   );
 }
