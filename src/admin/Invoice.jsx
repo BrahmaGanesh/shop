@@ -225,6 +225,7 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone; 
     if (cleanPhone.length < 10) return alert("Please enter a valid 10-digit number.");
 
+    // Build a beautiful text receipt
     let msg = `*${inv.shop.name}*\n`;
     msg += `${inv.shop.address || ''}\n`;
     if (inv.shop.phone) msg += `Ph: ${inv.shop.phone}\n`;
@@ -234,8 +235,8 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     if (inv.customer?.name) msg += `*Customer:* ${inv.customer.name}\n`;
     msg += `---------------------------------\n\n`;
     
+    // Loop through items
     inv.items.forEach((item, index) => {
-      // Adds English Name AND Telugu Name to WhatsApp
       msg += `${index + 1}. *${item.nameEnglish}*`;
       if (item.nameTelugu) msg += ` / ${item.nameTelugu}`;
       msg += `\n`;
@@ -253,6 +254,7 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     msg += `---------------------------------\n\n`;
     msg += `Thank you for your business!\nVisit Again.`;
 
+    // Open WhatsApp
     const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
     setWaOpen(false);

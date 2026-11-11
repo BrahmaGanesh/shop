@@ -11,6 +11,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { AppProvider } from './context';
 import { db } from './firebase';
 import { DEFAULT_SETTINGS } from '../functions/billing.js';
+import ShareBillPage from './ShareBillPage';
 
 import {
   BottomNav,
@@ -101,7 +102,7 @@ export default function App() {
                 </AdminGate>
               }
             />
-
+<Route path="/share/:id" element={<ShareBillPage />} />
             {/* PUBLIC DIGITAL BILL ROUTE (Scanned via QR Code) */}
             <Route path="/bill/:id" element={<BillScannerPage />} />
 
