@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Capacitor } from '@capacitor/core';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
+import { FileSharer } from '@capgo/capacitor-file-sharer';
 import { Printer } from '@capgo/capacitor-printer';
 import { money2 } from '../lib';
 
@@ -31,7 +30,7 @@ const speakTelugu = async (text) => {
   try {
     await TextToSpeech.stop();
     await TextToSpeech.speak({ text, lang: 'te-IN', rate: 0.9 });
-  } catch (e) { console.error(e); }
+  } catch (e) { /* ignore */ }
 };
 
 export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, onPriceClick }) {
@@ -214,7 +213,7 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
       if (Capacitor.isNativePlatform()) {
         try {
           await Printer.printWebView();
-        } catch (error) { alert("Printer not connected. Please connect a Wi-Fi printer."); }
+        } catch (error) { alert("Printer not connected."); }
       } else {
         window.print();
       }
@@ -244,55 +243,45 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
 
-      // REDUCED SCALE to prevent Out of Memory crash on Android WebView
+      // Lower scale & quality to prevent Android Memory Crash
       const canvas = await html2canvas(ref.current, { scale: 1.2, backgroundColor: '#ffffff', useCORS: true });
 
-      let base64Data, fileName, mimeType;
+      let base64Data, fileName, contentType;
 
       if (type === 'image') {
-        // Lower quality to reduce memory footprint
         base64Data = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
         fileName = `${inv.invoiceNo}.jpg`;
-        mimeType = 'image/jpeg';
+        contentType = 'image/jpeg';
       } else {
-        const img = canvas.toDataURL('image/jpeg', 0.7);
+        const imgData = canvas.toDataURL('image/jpeg', 0.7);
         let doc, w;
         if (format === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
         else if (format === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
         else if (format === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
         else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
         const h = (canvas.height * w) / canvas.width;
-        doc.addImage(img, 'JPEG', 0, 0, w, h);
-        if (format === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
-        if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
+        doc.addImage(imgData, 'JPEG', 0, 0, w, h);
+        if (format === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(imgData, 'JPEG', 0, -off, w, h); }
+        if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(imgData, 'JPEG', 0, -off, w, h); }
+
         base64Data = doc.output('datauristring').split(',')[1];
         fileName = `${inv.invoiceNo}-${format}.pdf`;
-        mimeType = 'application/pdf';
+        contentType = 'application/pdf';
       }
 
       if (Capacitor.isNativePlatform()) {
-        try {
-          // Try saving to Documents first (standard location)
-          const savedFile = await Filesystem.writeFile({
-            path: fileName,
-            data: base64Data,
-            directory: Directory.Documents,
-          });
-          await Share.share({ url: savedFile.uri });
-        } catch (e) {
-          // If Documents is blocked, fallback to Cache
-          console.warn("Documents blocked, trying Cache", e);
-          const savedFile = await Filesystem.writeFile({
-            path: fileName,
-            data: base64Data,
-            directory: Directory.Cache,
-          });
-          await Share.share({ url: savedFile.uri });
-        }
+        // FileSharer handles Android Scoped Storage and opens the Share Menu correctly
+        await FileSharer.share({
+          filename: fileName,
+          contentType: contentType,
+          base64Data: base64Data,
+          title: 'Bill ' + inv.invoiceNo,
+        });
       } else {
+        // Web fallback
         const link = document.createElement('a');
         link.download = fileName;
-        link.href = `data:${mimeType};base64,${base64Data}`;
+        link.href = `data:${contentType};base64,${base64Data}`;
         link.click();
       }
     } catch (e) {
