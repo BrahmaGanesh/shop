@@ -1,13 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { useApp } from './context';
 import { maxQty, money, searchProducts, stockInfo, unitPrice } from './lib';
 
 import logoImg from './assets/logo.png';
 
+// --- TELUGU VOICE HELPER ---
+export const speakTelugu = async (text) => {
+  // Only run on APK or Mobile browser view
+  const isMobile = window.innerWidth < 800;
+  if (!Capacitor.isNativePlatform() && !isMobile) return; 
+
+  try {
+    await TextToSpeech.speak({
+      text: text || 'పేరు లేదు',
+      lang: 'te-IN',
+      rate: 0.9,
+      pitch: 1.0,
+      volume: 1.0,
+    });
+  } catch (e) {
+    console.error('TTS Error', e);
+  }
+};
+
 export function Logo({ size = 34 }) {
-  // If you want it to be a perfect circle, keep borderRadius: '50%'. 
-  // If you want the original square/rectangle shape, remove borderRadius.
   return (
     <img 
       src={logoImg} 
@@ -130,15 +149,33 @@ export function ProductCard({ p }) {
   const out = stockInfo(p) === 'out';
   const sizeText = [p.size, p.productNumber].filter(Boolean).join(' / ');
   
-  // Check if this product is already in the cart
   const cartItem = items.find((i) => i.id === p.id);
   const cartQty = cartItem ? cartItem.qty : 0;
+
+  // Check if we are on Mobile or APK to show speaker
+  const isMobileView = window.innerWidth < 800 || Capacitor.isNativePlatform();
+  
+  const voiceText = `${p.nameTelugu || p.nameEnglish}. Size ${p.size || p.productNumber || ''}`;
 
   return (
     <article className="card">
       <Link to={`/product/${p.id}`} className="card-img"><Photo p={p} /></Link>
       <div className="card-b">
-        <h3><Link to={`/product/${p.id}`}>{p.nameEnglish}</Link></h3>
+        <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <Link to={`/product/${p.id}`}>{p.nameEnglish}</Link>
+          
+          {/* SPEAKER ICON (Mobile/APK Only) */}
+          {isMobileView && (
+            <button 
+              onClick={() => speakTelugu(voiceText)}
+              style={{ background: '#f4b400', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+              aria-label="Listen"
+            >
+              🔊
+            </button>
+          )}
+        </h3>
+        
         <p className="te">{p.nameTelugu}</p>
         {p.brand && <p className="meta">{t('brand')}: {p.brand}</p>}
         {sizeText && <p className="meta">{t('size')}: {sizeText}</p>}
@@ -148,16 +185,37 @@ export function ProductCard({ p }) {
         {cartQty > 0 ? (
           <div className="qty" style={{ marginTop: 'auto', width: '100%', justifyContent: 'space-between' }}>
             <button 
-              onClick={() => cartQty === 1 ? removeItem(p.id) : setQty(p.id, cartQty - 1)} 
+              onClick={() => {
+                speakTelugu('తగ్గించాము');
+                cartQty === 1 ? removeItem(p.id) : setQty(p.id, cartQty - 1);
+              }} 
               aria-label="−"
             >
               −
             </button>
             <span>{cartQty}</span>
-            <button onClick={() => setQty(p.id, cartQty + 1)} disabled={cartQty >= maxQty(p)} aria-label="+">+</button>
+            <button 
+              onClick={() => {
+                speakTelugu('పెంచాము');
+                setQty(p.id, cartQty + 1);
+              }} 
+              disabled={cartQty >= maxQty(p)} 
+              aria-label="+"
+            >
+              +
+            </button>
           </div>
         ) : (
-          <button className="btn" disabled={out} onClick={() => addToCart(p)}>{t('addToCart')}</button>
+          <button 
+            className="btn" 
+            disabled={out} 
+            onClick={() => {
+              speakTelugu(`${p.nameTelugu || p.nameEnglish} కార్ట్‌లో చేర్చబడింది`);
+              addToCart(p);
+            }}
+          >
+            {t('addToCart')}
+          </button>
         )}
       </div>
     </article>
@@ -182,7 +240,6 @@ export function CartLine({ line }) {
   const { t, setQty, removeItem } = useApp();
   const { product: p, qty, customPrice } = line;
   
-  // Use the custom price if the user typed one, otherwise use the default
   const u = customPrice !== undefined && customPrice !== '' ? Number(customPrice) : unitPrice(p);
 
   return (
@@ -194,8 +251,23 @@ export function CartLine({ line }) {
         <small>{[p.size, p.productNumber].filter(Boolean).join(' / ')}</small>
         <small>{u == null ? t('notAdded') : `${money(u)} × ${qty} = ${money(u * qty)}`}</small>
         <div className="line-act">
-          <Qty value={qty} onChange={(n) => setQty(p.id, n)} max={maxQty(p)} />
-          <button className="link" onClick={() => removeItem(p.id)}>{t('remove')}</button>
+          <Qty 
+            value={qty} 
+            onChange={(n) => {
+              speakTelugu(n > qty ? 'పెంచాము' : 'తగ్గించాము');
+              setQty(p.id, n);
+            }} 
+            max={maxQty(p)} 
+          />
+          <button 
+            className="link" 
+            onClick={() => {
+              speakTelugu('తొలగించాము');
+              removeItem(p.id);
+            }}
+          >
+            {t('remove')}
+          </button>
         </div>
       </div>
     </div>

@@ -1,15 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { TextToSpeech } from '@capacitor-community/text-to-speech'; // <-- VOICE IMPORT
+import { Capacitor } from '@capacitor/core';
 import { auth } from './firebase';
 import { useApp } from './context';
 import { useAdmin } from './admin/AdminShell';
 import { Invoice } from './admin/Invoice';
 import { buildDraftInvoice } from './billFromCart';
 import { CartLine, Grid, Loading, Logo, Photo, PriceBlock, ProductCard, Qty, StockTag, Totals } from './components';
-import { maxQty, searchProducts, stockInfo, unitPrice, money2 } from './lib';
+import { maxQty, searchProducts, stockInfo, unitPrice } from './lib';
 
 const nameOf = (c, lang) => (lang === 'te' && c.nameTelugu ? c.nameTelugu : c.nameEnglish);
+
+// --- VOICE HELPER ---
+export const speakTelugu = async (text) => {
+  if (!Capacitor.isNativePlatform()) return; // Only speak in APK
+  try {
+    await TextToSpeech.speak({
+      text: text || 'పేరు లేదు',
+      lang: 'te-IN',
+      rate: 0.9,
+      pitch: 1.0,
+      volume: 1.0,
+    });
+  } catch (e) {
+    console.error('TTS Error', e);
+  }
+};
 
 function CategoryCards() {
   const { categories, products, lang, t } = useApp();
@@ -69,29 +87,56 @@ export function Finder({ initial = '' }) {
   );
 }
 
+// --- HOME PAGE (MACHINES ALBUM ONLY) ---
 export function Home() {
-  const { products, loaded, t } = useApp();
-  const shown = useMemo(
-    () => [...products].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 15),
-    [products],
-  );
+  const { products, machines, loaded, t } = useApp();
+  const [selectedMachine, setSelectedMachine] = useState(null);
+
+  // Get machines that have images
+  const machineList = machines.filter(m => m.active !== false);
+
+  // Get products for the selected machine
+  const machineProducts = selectedMachine 
+    ? products.filter(p => p.compatibleMachines?.includes(selectedMachine.id))
+    : [];
+
   return (
     <>
       <section className="hero">
         <div className="wrap hero-in">
           <div className="hero-t"><Logo size={56} /><h1>NEW SRI RAMA LATHE WORKS</h1></div>
-          <div className="plate">
-            <h2>{t('findTitle')}</h2>
-            {loaded ? <Finder /> : <p>{t('loading')}</p>}
-          </div>
         </div>
       </section>
+      
       <div className="wrap">
-        <h2 className="sec">{t('categories')}</h2>
-        <CategoryCards />
-        <h2 className="sec">{t('latest')}</h2>
-        {loaded ? (shown.length ? <Grid list={shown} /> : <p className="empty">{t('noResults')}</p>) : <Loading />}
-        <p className="center"><Link to="/products" className="btn wide">{t('viewAll')}</Link></p>
+        <h2 className="sec">{t('finder')} (Machines)</h2>
+        {!loaded ? <Loading /> : (
+          <div className="cats" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
+            {machineList.map(m => (
+              <button 
+                key={m.id} 
+                className="cat" 
+                onClick={() => setSelectedMachine(m)}
+                style={{ border: selectedMachine?.id === m.id ? '3px solid #00337a' : '1.5px solid var(--line)', cursor: 'pointer', background: '#fff' }}
+              >
+                {m.imageUrl ? <img className="cat-img" src={m.imageUrl} alt="" style={{ width: 80, height: 80, objectFit: 'contain' }} /> : <span className="cat-i">🚜</span>}
+                <b>{m.brand} {m.model}</b>
+                <small>{m.type || 'Machine'}</small>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {selectedMachine && (
+          <div style={{ marginTop: 30 }}>
+            <h2 className="sec">Parts for {selectedMachine.brand} {selectedMachine.model}</h2>
+            {machineProducts.length === 0 ? (
+              <p className="empty">{t('noParts')}</p>
+            ) : (
+              <Grid list={machineProducts} />
+            )}
+          </div>
+        )}
       </div>
     </>
   );
@@ -186,6 +231,17 @@ export function ProductPage() {
       <div className="pd-b">
         <h1>{p.nameEnglish}</h1>
         <p className="te big">{p.nameTelugu}</p>
+        
+        {/* VOICE BUTTON FOR PRODUCT PAGE */}
+        {Capacitor.isNativePlatform() && (
+          <button 
+            onClick={() => speakTelugu(`${p.nameEnglish}. ${p.nameTelugu}. Size ${p.size || p.productNumber}`)}
+            style={{ background: '#f4b400', border: 'none', padding: '10px 16px', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '10px', color: '#1c2b36' }}
+          >
+            🔊 వినండి (Listen)
+          </button>
+        )}
+
         <PriceBlock p={p} big />
         <StockTag p={p} />
         <dl>{rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
@@ -246,6 +302,13 @@ export function CartPage() {
   const [dType, setDType] = useState('percent');
   const [dVal, setDVal] = useState('');
 
+  // Set default format for mobile APK
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() || window.innerWidth < 600) {
+      setPrintFmt('thermal'); // 80mm for mobile
+    }
+  }, []);
+
   useEffect(() => {
     if (view === 'bill') {
       setDraftLines(JSON.parse(JSON.stringify(lines)));
@@ -264,12 +327,15 @@ export function CartPage() {
 
   const doPrint = () => { printPageStyle(printFmt); setTimeout(() => window.print(), 100); };
 
-  // --- WHATSAPP LOGIC (Fixed Popup Blocker) ---
   const sendWhatsApp = () => {
-    let phone = window.prompt("Enter customer's WhatsApp number (with country code, e.g., 919640254545):");
+    // Voice feedback on click
+    speakTelugu('వాట్సాప్ తెరుస్తున్నాము');
+    
+    let phone = window.prompt("Enter customer's WhatsApp number:");
     if (!phone) return; 
     
     let cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return alert("Please enter a valid phone number.");
 
     let msg = `*${draft.shop.name}*\n`;
@@ -281,7 +347,9 @@ export function CartPage() {
     msg += `---------------------------------\n\n`;
     
     draft.items.forEach((item, index) => {
-      msg += `${index + 1}. *${item.nameEnglish}*\n`;
+      msg += `${index + 1}. *${item.nameEnglish}*`;
+      if (item.nameTelugu) msg += ` / ${item.nameTelugu}`;
+      msg += `\n`;
       msg += `   Qty: ${item.qty} x ₹${money2(item.unitPrice).replace('₹', '')} = *₹${money2(item.amount).replace('₹', '')}*\n\n`;
     });
 
@@ -293,12 +361,8 @@ export function CartPage() {
     msg += `Thank you for shopping with us!`;
 
     const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
-    
-    // Fallback to window.location to bypass popup blockers in some browsers
     const win = window.open(url, '_blank');
-    if (!win) {
-      window.location.href = url;
-    }
+    if (!win) window.location.href = url;
   };
 
   if (!loaded) return <div className="wrap narrow"><Loading /></div>;
@@ -332,11 +396,16 @@ export function CartPage() {
         <Totals />
         <p className="note">{t('cartNote')}</p>
         <div className="row" style={{ marginTop: 10 }}>
-          <Link to="/products" className="btn ghost">{t('continue')}</Link>
+          <Link to="/products" className="btn ghost" onClick={() => speakTelugu('షాపింగ్ కొనసాగించండి')}>{t('continue')}</Link>
           <button
             className="btn"
             style={{ marginLeft: 'auto' }}
-            onClick={() => { setPrintFmt('a5'); setView('bill'); window.scrollTo(0, 0); }}
+            onClick={() => { 
+              speakTelugu('బిల్లు చూపిస్తున్నాము');
+              setPrintFmt(Capacitor.isNativePlatform() || window.innerWidth < 600 ? 'thermal' : 'a5'); 
+              setView('bill'); 
+              window.scrollTo(0, 0); 
+            }}
           >
             VIEW BILL →
           </button>
@@ -355,9 +424,10 @@ export function CartPage() {
           <h1>Bill preview</h1>
           <button className="a-btn" onClick={() => setView('cart')}>← Back to cart</button>
         </div>
-        <p className="note">Click any price to edit it for this bill. This will not change the product's actual price in the shop.</p>
         
         <div className="row" style={{ marginBottom: 8 }}>
+          {/* HIDE THE SPEAKER ICON HERE AS REQUESTED */}
+          
           <div className="seg2">
             {[['a4', 'A4'], ['a5', 'A5'], ['thermal110', '110 mm'], ['thermal', '80 mm']].map(([f, l]) => (
               <button key={f} className={printFmt === f ? 'on' : ''} onClick={() => setPrintFmt(f)}>{l}</button>
@@ -365,15 +435,11 @@ export function CartPage() {
           </div>
           <button className="a-btn primary" onClick={doPrint}>🖨️ PRINT BILL</button>
           
-          {/* WHATSAPP BUTTON FOR CART */}
           <button 
             className="a-btn" 
             style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} 
             onClick={sendWhatsApp}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: 6 }}>
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
             Send WhatsApp
           </button>
 
