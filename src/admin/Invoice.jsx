@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Capacitor } from '@capacitor/core';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
-import { FileSharer } from '@capgo/capacitor-file-sharer';
 import { Printer } from '@capgo/capacitor-printer';
 import { money2 } from '../lib';
 
@@ -238,55 +237,44 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     setWaOpen(false);
   };
 
+  // DOWNLOAD FIX: Use Native PDF Print (Android will offer "Save as PDF")
   const downloadFile = async (type) => {
     setBusy(true);
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
-
-      // Lower scale & quality to prevent Android Memory Crash
-      const canvas = await html2canvas(ref.current, { scale: 1.2, backgroundColor: '#ffffff', useCORS: true });
-
-      let base64Data, fileName, contentType;
-
-      if (type === 'image') {
-        base64Data = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
-        fileName = `${inv.invoiceNo}.jpg`;
-        contentType = 'image/jpeg';
-      } else {
-        const imgData = canvas.toDataURL('image/jpeg', 0.7);
-        let doc, w;
-        if (format === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
-        else if (format === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
-        else if (format === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
-        else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
-        const h = (canvas.height * w) / canvas.width;
-        doc.addImage(imgData, 'JPEG', 0, 0, w, h);
-        if (format === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(imgData, 'JPEG', 0, -off, w, h); }
-        if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(imgData, 'JPEG', 0, -off, w, h); }
-
-        base64Data = doc.output('datauristring').split(',')[1];
-        fileName = `${inv.invoiceNo}-${format}.pdf`;
-        contentType = 'application/pdf';
-      }
-
       if (Capacitor.isNativePlatform()) {
-        // FileSharer handles Android Scoped Storage and opens the Share Menu correctly
-        await FileSharer.share({
-          filename: fileName,
-          contentType: contentType,
-          base64Data: base64Data,
-          title: 'Bill ' + inv.invoiceNo,
-        });
+        // On Android, native Print is the most stable way to "Download PDF"
+        // It opens the Android Print menu which has a "Save as PDF" option
+        await Printer.printWebView();
       } else {
-        // Web fallback
+        // On Web, generate the file with html2canvas
+        const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+        const canvas = await html2canvas(ref.current, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true });
+        let dataUrl, fileName;
+        if (type === 'image') {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+          fileName = `${inv.invoiceNo}.jpg`;
+        } else {
+          const imgData = canvas.toDataURL('image/jpeg', 0.9);
+          let doc, w;
+          if (format === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
+          else if (format === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
+          else if (format === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
+          else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
+          const h = (canvas.height * w) / canvas.width;
+          doc.addImage(imgData, 'JPEG', 0, 0, w, h);
+          if (format === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(imgData, 'JPEG', 0, -off, w, h); }
+          if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(imgData, 'JPEG', 0, -off, w, h); }
+          dataUrl = doc.output('datauristring');
+          fileName = `${inv.invoiceNo}-${format}.pdf`;
+        }
         const link = document.createElement('a');
         link.download = fileName;
-        link.href = `data:${contentType};base64,${base64Data}`;
+        link.href = dataUrl;
         link.click();
       }
     } catch (e) {
       console.error(e);
-      alert('Could not download: ' + (e.message || 'Unknown error'));
+      alert('Could not download. Use Print button instead.');
     }
     setBusy(false);
   };

@@ -12,6 +12,7 @@ import { AppProvider } from './context';
 import { db } from './firebase';
 import { DEFAULT_SETTINGS } from '../functions/billing.js';
 import ShareBillPage from './ShareBillPage';
+import NavRestore from './NavRestore'; // NEW: Handles restoring last visited page
 
 import {
   BottomNav,
@@ -21,7 +22,7 @@ import {
 } from './components';
 
 import AdminShell, { AdminCtx } from './admin/AdminShell';
-import BillScannerPage from './BillScannerPage'; // NEW IMPORT for the QR scanner
+import BillScannerPage from './BillScannerPage'; 
 
 import {
   AdminGate,
@@ -61,10 +62,6 @@ function Shop() {
 }
 
 // Storefront-only settings bridge.
-// The admin panel nests its own AdminCtx.Provider inside AdminShell, so pages
-// under /admin/* see the full admin context (products, categories, machines,
-// settings, ready). The storefront only needs `settings` — for the cart →
-// bill preview to print the real shop name, address and phone.
 function SettingsBridge({ children }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
@@ -84,6 +81,9 @@ function SettingsBridge({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* NavRestore listens to route changes and restores the last page on launch */}
+      <NavRestore />
+      
       <AppProvider>
         <SettingsBridge>
           <Routes>
@@ -102,8 +102,9 @@ export default function App() {
                 </AdminGate>
               }
             />
-<Route path="/share/:id" element={<ShareBillPage />} />
-            {/* PUBLIC DIGITAL BILL ROUTE (Scanned via QR Code) */}
+            
+            {/* Public Bill Routes */}
+            <Route path="/share/:id" element={<ShareBillPage />} />
             <Route path="/bill/:id" element={<BillScannerPage />} />
 
             {/* Customer website */}
