@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Capacitor } from '@capacitor/core';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Printer } from '@capgo/capacitor-printer';
 import { money2 } from '../lib';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -25,7 +28,10 @@ const SHOP = {
 
 const speakTelugu = async (text) => {
   if (!Capacitor.isNativePlatform() && window.innerWidth > 800) return;
-  try { await TextToSpeech.speak({ text, lang: 'te-IN', rate: 0.9 }); } catch (e) { console.error(e); }
+  try {
+    await TextToSpeech.stop();
+    await TextToSpeech.speak({ text, lang: 'te-IN', rate: 0.9 });
+  } catch (e) { console.error(e); }
 };
 
 export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, onPriceClick }) {
@@ -204,14 +210,13 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
   const ref = useRef(null);
 
   const print = async (f) => {
-    setFormat(f); 
+    setFormat(f);
     setTimeout(async () => {
-      pageStyle(f); 
+      pageStyle(f);
       if (Capacitor.isNativePlatform()) {
         try {
-          const { Printer } = await import('@capgo/capacitor-printer');
           await Printer.printWebView();
-        } catch (error) { alert("Printer not connected"); }
+        } catch (error) { alert("Printer not connected. Please connect a Wi-Fi printer."); }
       } else {
         window.print();
       }
@@ -221,7 +226,7 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
   const handleWhatsApp = (e) => {
     e.preventDefault();
     let cleanPhone = waPhone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone; 
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return alert("Please enter a valid 10-digit number.");
     let msg = `*${inv.shop.name}*\n${inv.shop.address || ''}\nPh: ${inv.shop.phone || ''}\n---------------------------------\n*Bill No:* ${inv.invoiceNo}\n*Date:* ${new Date().toLocaleDateString('en-IN')}\n---------------------------------\n\n`;
     inv.items.forEach((item, index) => {
@@ -241,8 +246,12 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
       const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+
+      let base64Data, fileName;
+
       if (type === 'image') {
-        const link = document.createElement('a'); link.download = `${inv.invoiceNo}.jpg`; link.href = canvas.toDataURL('image/jpeg', 0.95); link.click();
+        base64Data = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+        fileName = `${inv.invoiceNo}.jpg`;
       } else {
         const img = canvas.toDataURL('image/jpeg', 0.95);
         let doc, w;
@@ -254,7 +263,28 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
         doc.addImage(img, 'JPEG', 0, 0, w, h);
         if (format === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
         if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
-        doc.save(`${inv.invoiceNo}-${format}.pdf`);
+        base64Data = doc.output('datauristring').split(',')[1];
+        fileName = `${inv.invoiceNo}-${format}.pdf`;
+      }
+
+      if (Capacitor.isNativePlatform()) {
+        // NATIVE ANDROID SAVE & SHARE
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Cache, // Uses cache to avoid permission blocks
+        });
+        await Share.share({
+          title: 'Bill Downloaded',
+          url: savedFile.uri,
+          dialogTitle: 'Save or share your bill',
+        });
+      } else {
+        // WEB BROWSER DOWNLOAD
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = type === 'image' ? `data:image/jpeg;base64,${base64Data}` : `data:application/pdf;base64,${base64Data}`;
+        link.click();
       }
     } catch (e) { alert('Could not download: ' + e.message); }
     setBusy(false);

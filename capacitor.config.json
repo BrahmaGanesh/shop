@@ -1,5 +1,8 @@
 {
   "appId": "com.sriramaworks.app",
   "appName": "new-sri-rama-lathe-works-bill",
-  "webDir": "dist"
+  "webDir": "dist",
+  "android": {
+    "webContentsDebuggingEnabled": true
+  }
 }
