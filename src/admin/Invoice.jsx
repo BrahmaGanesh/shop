@@ -118,7 +118,6 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                 <div className="inv-meta-no"><b>Bill No.:</b> {inv.invoiceNo}</div>
                 <div className="inv-meta-date"><b>Date:</b> {now.date} {now.time}</div>
               </div>
-
               <table className="inv-tbl">
                 <thead>
                   <tr>
@@ -161,7 +160,6 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                   ))}
                 </tbody>
               </table>
-
               {isLastPage && (
                 <>
                   <div className="inv-tot">
@@ -245,15 +243,16 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     setBusy(true);
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
-      const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const canvas = await html2canvas(ref.current, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true });
 
-      let base64Data, fileName;
+      let base64Data, fileName, mimeType;
 
       if (type === 'image') {
-        base64Data = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+        base64Data = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
         fileName = `${inv.invoiceNo}.jpg`;
+        mimeType = 'image/jpeg';
       } else {
-        const img = canvas.toDataURL('image/jpeg', 0.95);
+        const img = canvas.toDataURL('image/jpeg', 0.85);
         let doc, w;
         if (format === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
         else if (format === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
@@ -265,14 +264,15 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
         if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
         base64Data = doc.output('datauristring').split(',')[1];
         fileName = `${inv.invoiceNo}-${format}.pdf`;
+        mimeType = 'application/pdf';
       }
 
       if (Capacitor.isNativePlatform()) {
-        // NATIVE ANDROID SAVE & SHARE
+        // NATIVE ANDROID SAVE & SHARE (Cache fallback)
         const savedFile = await Filesystem.writeFile({
           path: fileName,
           data: base64Data,
-          directory: Directory.Cache, // Uses cache to avoid permission blocks
+          directory: Directory.Cache,
         });
         await Share.share({
           title: 'Bill Downloaded',
@@ -283,10 +283,13 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
         // WEB BROWSER DOWNLOAD
         const link = document.createElement('a');
         link.download = fileName;
-        link.href = type === 'image' ? `data:image/jpeg;base64,${base64Data}` : `data:application/pdf;base64,${base64Data}`;
+        link.href = `data:${mimeType};base64,${base64Data}`;
         link.click();
       }
-    } catch (e) { alert('Could not download: ' + e.message); }
+    } catch (e) {
+      console.error(e);
+      alert('Could not download: ' + e.message);
+    }
     setBusy(false);
   };
 
