@@ -130,15 +130,15 @@
 /* -------- A4 Sizing -------- */
 .inv.a4 { width:794px; min-height:500px; padding:34px; font-size:14px; }
 .inv.a4 .inv-hd-name { font-size: 2.4em; }
-.inv.a4 .inv-tbl th { padding: 10px 4px; font-size: 1.4em; } /* Header size */
-.inv.a4 .inv-tbl td { padding: 10px 1px; font-size: 1.7em; } /* Requested A4 Text Size */
+.inv.a4 .inv-tbl th { padding: 10px 4px; font-size: 1.4em; }
+.inv.a4 .inv-tbl td { padding: 10px 1px; font-size: 1.7em; }
 .inv.a4 .inv-img { width: 56px; height: 56px; }
 
 /* -------- A5 Sizing -------- */
 .inv.a5 { width:559px; min-height:400px; padding:22px; }
 .inv.a5 .inv-hd-name { font-size: 1.9em; }
-.inv.a5 .inv-tbl th { padding: 8px 4px; font-size: 1.2em; } /* Header size */
-.inv.a5 .inv-tbl td { padding: 8px 4px; font-size: 1.2em; } /* Requested A5 Text Size */
+.inv.a5 .inv-tbl th { padding: 8px 4px; font-size: 1.2em; }
+.inv.a5 .inv-tbl td { padding: 8px 4px; font-size: 1.2em; }
 
 /* -------- Totals (A4/A5) -------- */
 .inv-tot { margin-left:auto; width:min(320px,100%); font-family: 'Barlow', sans-serif; font-size:1em; padding-top:10px; display:grid; gap:4px; color: #00337a; }
@@ -228,13 +228,13 @@
 /* Product Name */
 .inv.thermal110 .th-name, .inv.thermal .th-name { 
   text-align: left !important; 
-  font-size: 15px !important; /* Requested */
+  font-size: 15px !important;
   line-height: 1.15 !important; 
   padding-left: 4px !important;
   word-break: break-word !important;
 }
 .inv.thermal110 .th-size, .inv.thermal .th-size { 
-  font-size: 15px !important; /* Requested */
+  font-size: 15px !important; 
   color: #000 !important; 
   font-weight: 600 !important;
   margin-top: 1px !important;
@@ -315,4 +315,53 @@
   
   /* Ensure backgrounds (like the blue headers and striped rows) print */
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  
+  /* HIDE SPEAKER ICONS ON PRINT */
+  button { display: none !important; }
+  .no-print { display: none !important; }
+}
+
+/* --- PERFECT PAGINATION FOR A4 & A5 --- */
+
+/* A4: Force 50 items per page */
+.inv.a4 .inv-tbl td { 
+  padding: 3px 2px; 
+  font-size: 0.95em; 
+  height: 32px; /* Fixed height to fit 50 rows perfectly */
+}
+.inv.a4 .inv-tbl th { padding: 4px; font-size: 0.95em; }
+.inv.a4 .inv-img { width: 26px; height: 26px; }
+.inv.a4 .inv-hd-name { font-size: 1.8em; margin: 0; }
+
+/* A5: Force 28 items per page */
+.inv.a5 .inv-tbl td { 
+  padding: 2px 1px; 
+  font-size: 0.85em; 
+  height: 34px; /* Fixed height to fit 28 rows perfectly */
+}
+.inv.a5 .inv-tbl th { padding: 3px; font-size: 0.85em; }
+.inv.a5 .inv-img { width: 24px; height: 24px; }
+.inv.a5 .inv-hd-name { font-size: 1.4em; margin: 0; }
+.inv.a5 .inv-tot-row.gt { font-size: 1.2em; }
+
+/* Thermal continuous printing (no page breaks) */
+.inv.thermal110, .inv.thermal { page-break-inside: auto; }
+.inv.thermal110 .th-row, .inv.thermal .th-row { page-break-inside: avoid; }
+
+/* --- ZOOM POPUP FOR MOBILE --- */
+.zoom-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.zoom-box {
+  background: #fff; padding: 24px; border-radius: 12px; width: 100%; max-width: 320px;
+  display: grid; gap: 16px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+.zoom-box h2 { margin: 0; font-size: 1.4rem; color: #00337a; }
+.zoom-box input {
+  font-size: 2rem !important; text-align: center; padding: 12px; border: 2px solid #00337a !important;
+  border-radius: 8px; font-weight: bold; width: 100%;
+}
+.zoom-box button {
+  padding: 12px; font-size: 1.1rem; border-radius: 8px; border: none; cursor: pointer;
 }

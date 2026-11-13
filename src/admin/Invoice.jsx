@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Capacitor } from '@capacitor/core';
-import { Printer } from '@capgo/capacitor-printer';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { money2 } from '../lib';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -23,11 +23,19 @@ const SHOP = {
   upiId: 'YOUR_UPI_ID_HERE', // ⚠️ Change this to your real UPI ID
 };
 
-export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }) {
+// Voice Helper for APK
+const speakTelugu = async (text) => {
+  if (!Capacitor.isNativePlatform() && window.innerWidth > 800) return;
+  try {
+    await TextToSpeech.speak({ text, lang: 'te-IN', rate: 0.9 });
+  } catch (e) { console.error(e); }
+};
+
+export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, onPriceClick }) {
   const isThermal = format === 'thermal' || format === 'thermal110';
   const now = liveNow();
   const sizeNo = (i) => [i.size, i.productNumber].filter(Boolean).join(' / ');
-
+  
   const upiLink = `upi://pay?pa=${SHOP.upiId}&pn=${encodeURIComponent(SHOP.name)}&am=${inv.total}&cu=INR&tn=${encodeURIComponent('Bill ' + inv.invoiceNo)}`;
 
   return (
@@ -52,16 +60,10 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
         <div className="inv-meta-date">
           <b>Date:</b> {now.date} {now.time && <span className="inv-meta-time">{now.time}</span>}
         </div>
-        {(inv.customer?.name || inv.customer?.phone) && (
-          <div className="inv-meta-cust">
-            <b>Customer:</b> {[inv.customer.name, inv.customer.phone].filter(Boolean).join(' · ')}
-          </div>
-        )}
       </div>
 
       {/* ---------- Items ---------- */}
       {!isThermal ? (
-        /* -------- A4 / A5 Table -------- */
         <table className="inv-tbl">
           <thead>
             <tr>
@@ -83,7 +85,19 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
                     : <span style={{ color: '#999' }}>—</span>}
                 </td>
                 <td style={{ textAlign: 'center' }}>
-                  <b>{i.nameEnglish}{i.nameTelugu ? ` / ${i.nameTelugu}` : ''}</b>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <b>{i.nameEnglish}{i.nameTelugu ? ` / ${i.nameTelugu}` : ''}</b>
+                    {/* SPEAKER ICON IN BILL */}
+                    {Capacitor.isNativePlatform() && (
+                      <button 
+                        className="no-print"
+                        onClick={() => speakTelugu(`${i.nameTelugu || i.nameEnglish}, ${i.qty} క్వాంటిటీ, ధర ${i.unitPrice}`)}
+                        style={{ background: '#f4b400', border: 'none', borderRadius: '50%', width: 24, height: 24, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                      >
+                        🔊
+                      </button>
+                    )}
+                  </div>
                 </td>
                 <td style={{ textAlign: 'center' }}>
                   <b>{sizeNo(i) || '—'}</b>
@@ -91,14 +105,24 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
                 <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{i.qty}</td>
                 <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
                   {editable && onUpdateLine ? (
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={i.unitPrice}
-                      onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })}
-                      style={{ width: '85%', textAlign: 'center', fontWeight: 'bold', padding: '4px', border: '1px solid #00337a', borderRadius: '4px' }}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        step="any"
+                        value={i.unitPrice} 
+                        onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })}
+                        style={{ width: '60px', textAlign: 'center', fontWeight: 'bold', padding: '4px', border: '1px solid #00337a', borderRadius: '4px' }}
+                      />
+                      {Capacitor.isNativePlatform() && (
+                        <button 
+                          onClick={() => speakTelugu(`ధర ${i.unitPrice}`)}
+                          style={{ background: '#f4b400', border: 'none', borderRadius: '50%', width: 24, height: 24, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                        >
+                          🔊
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     `₹${money2(i.unitPrice).replace('₹', '')}`
                   )}
@@ -108,7 +132,6 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
           </tbody>
         </table>
       ) : (
-        /* -------- Thermal Receipt (110mm / 80mm) GRID LAYOUT -------- */
         <div className="th-items">
           <div className="th-header-row">
             <span>#</span><span>Img</span><span>Product Name</span><span>Qty</span><span>Price</span>
@@ -120,20 +143,30 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
                 {i.billImageUrl ? <img src={i.billImageUrl} alt="" /> : '—'}
               </div>
               <div className="th-name">
-                <b>{i.nameEnglish}{i.nameTelugu ? ` / ${i.nameTelugu}` : ''}</b>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  <b>{i.nameEnglish}{i.nameTelugu ? ` / ${i.nameTelugu}` : ''}</b>
+                  {Capacitor.isNativePlatform() && (
+                    <button onClick={() => speakTelugu(`${i.nameTelugu}, ${i.qty} క్వాంటిటీ`)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>🔊</button>
+                  )}
+                </div>
                 {sizeNo(i) ? <div className="th-size">Size: <b>{sizeNo(i)}</b></div> : null}
               </div>
               <div className="th-qty">{i.qty}</div>
               <div className="th-price">
                 {editable && onUpdateLine ? (
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={i.unitPrice}
-                    onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })}
-                    style={{ width: '55px', textAlign: 'right', fontWeight: 'bold', padding: '2px', border: '1px solid #000', borderRadius: '2px' }}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="any"
+                      value={i.unitPrice} 
+                      onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })}
+                      style={{ width: '45px', textAlign: 'right', fontWeight: 'bold', padding: '2px', border: '1px solid #000', borderRadius: '2px' }}
+                    />
+                    {Capacitor.isNativePlatform() && (
+                      <button onClick={() => speakTelugu(`ధర ${i.unitPrice}`)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>🔊</button>
+                    )}
+                  </div>
                 ) : (
                   `₹${money2(i.amount).replace('₹', '')}`
                 )}
@@ -192,7 +225,6 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine }
           <div className="inv-ft-thanks"><b>Thank You! Visit Again.</b></div>
           <div className="inv-ft-name">{SHOP.name}</div>
         </div>
-
         <div className="inv-ft-qr">
           <QRCodeSVG value={upiLink} size={isThermal ? 50 : 70} level="M" />
           <div className="inv-qr-text">Scan to Pay (UPI)</div>
@@ -206,8 +238,8 @@ function pageStyle(format) {
   let el = document.getElementById('rs-page');
   if (!el) { el = document.createElement('style'); el.id = 'rs-page'; document.head.appendChild(el); }
   el.textContent =
-    format === 'a4' ? '@page{size:A4;margin:10mm}'
-    : format === 'a5' ? '@page{size:A5;margin:8mm}'
+    format === 'a4' ? '@page{size:A4;margin:6mm}'
+    : format === 'a5' ? '@page{size:A5;margin:6mm}'
     : format === 'thermal110' ? '@page{size:110mm auto;margin:3mm}'
     : '@page{size:80mm auto;margin:2mm}';
 }
@@ -217,25 +249,23 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
   const [busy, setBusy] = useState(false);
   const [waOpen, setWaOpen] = useState(false);
   const [waPhone, setWaPhone] = useState(inv.customer?.phone || '');
+  
+  // ZOOM POPUP STATE
+  const [zoomItem, setZoomItem] = useState(null);
+  const [zoomValue, setZoomValue] = useState('');
+
   const ref = useRef(null);
 
-  // --- HYBRID PRINT LOGIC (Web + APK) ---
   const print = async (f) => {
-    setFormat(f);
-    // Give the UI a split second to switch the format before printing
+    setFormat(f); 
     setTimeout(async () => {
-      pageStyle(f);
-
+      pageStyle(f); 
       if (Capacitor.isNativePlatform()) {
-        // Running inside Android APK
         try {
+          const { Printer } = await import('@capgo/capacitor-printer');
           await Printer.printWebView();
-        } catch (error) {
-          console.error(error);
-          alert("Printing failed. Please ensure your printer is connected.");
-        }
+        } catch (error) { alert("Printer not connected"); }
       } else {
-        // Running in normal Web Browser
         window.print();
       }
     }, 200);
@@ -244,85 +274,108 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
   const handleWhatsApp = (e) => {
     e.preventDefault();
     let cleanPhone = waPhone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone; 
     if (cleanPhone.length < 10) return alert("Please enter a valid 10-digit number.");
 
-    let msg = `*${inv.shop.name}*\n`;
-    msg += `${inv.shop.address || ''}\n`;
-    if (inv.shop.phone) msg += `Ph: ${inv.shop.phone}\n`;
+    let msg = `*${inv.shop.name}*\n${inv.shop.address || ''}\nPh: ${inv.shop.phone || ''}\n`;
     msg += `---------------------------------\n`;
-    msg += `*Bill No:* ${inv.invoiceNo}\n`;
-    msg += `*Date:* ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}\n`;
-    if (inv.customer?.name) msg += `*Customer:* ${inv.customer.name}\n`;
+    msg += `*Bill No:* ${inv.invoiceNo}\n*Date:* ${new Date().toLocaleDateString('en-IN')}\n`;
     msg += `---------------------------------\n\n`;
-
+    
     inv.items.forEach((item, index) => {
-      msg += `${index + 1}. *${item.nameEnglish}*`;
-      if (item.nameTelugu) msg += ` / ${item.nameTelugu}`;
-      msg += `\n`;
-
-      const size = [item.size, item.productNumber].filter(Boolean).join(' / ');
-      if (size) msg += `   Size: ${size}\n`;
+      msg += `${index + 1}. *${item.nameEnglish}*${item.nameTelugu ? ` / ${item.nameTelugu}` : ''}\n`;
       msg += `   Qty: ${item.qty} x ₹${money2(item.unitPrice).replace('₹', '')} = *₹${money2(item.amount).replace('₹', '')}*\n\n`;
     });
 
     msg += `---------------------------------\n`;
     msg += `Subtotal: ₹${money2(inv.subtotal).replace('₹', '')}\n`;
     if (inv.discount > 0) msg += `Discount: -₹${money2(inv.discount).replace('₹', '')}\n`;
-    if (inv.tax > 0) msg += `Tax: ₹${money2(inv.tax).replace('₹', '')}\n`;
     msg += `*GRAND TOTAL: ₹${money2(inv.total).replace('₹', '')}*\n`;
-    msg += `---------------------------------\n\n`;
-    msg += `Thank you for your business!\nVisit Again.`;
+    msg += `---------------------------------\n\nThank you! Visit Again.`;
 
     const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
     setWaOpen(false);
   };
 
-  const pdf = async () => {
+  // --- DOWNLOAD PDF & IMAGE ---
+  const downloadFile = async (type) => {
     setBusy(true);
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
       const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-      const img = canvas.toDataURL('image/jpeg', 0.95);
-      let doc, w;
-      if (format === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
-      else if (format === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
-      else if (format === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
-      else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
-      const h = (canvas.height * w) / canvas.width;
-      doc.addImage(img, 'JPEG', 0, 0, w, h);
-      if (format === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
-      if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
-      doc.save(`${inv.invoiceNo}-${format}.pdf`);
-    } catch (e) { alert('Could not create PDF: ' + e.message); }
+      
+      if (type === 'image') {
+        const link = document.createElement('a');
+        link.download = `${inv.invoiceNo}.jpg`;
+        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        link.click();
+      } else {
+        const img = canvas.toDataURL('image/jpeg', 0.95);
+        let doc, w;
+        if (format === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
+        else if (format === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
+        else if (format === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
+        else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
+        
+        const h = (canvas.height * w) / canvas.width;
+        doc.addImage(img, 'JPEG', 0, 0, w, h);
+        
+        if (format === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
+        if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
+        
+        doc.save(`${inv.invoiceNo}-${format}.pdf`);
+      }
+    } catch (e) { alert('Could not download: ' + e.message); }
     setBusy(false);
+  };
+
+  // Open Zoom Popup for price editing
+  const openZoom = (item) => {
+    setZoomItem(item);
+    setZoomValue(item.unitPrice);
+  };
+  
+  const saveZoom = () => {
+    if (onUpdateLine && zoomItem) {
+      onUpdateLine(zoomItem.productId, { customPrice: zoomValue });
+    }
+    setZoomItem(null);
   };
 
   return (
     <div className="inv-page">
+      
+      {/* ZOOM POPUP FOR MOBILE */}
+      {zoomItem && (
+        <div className="zoom-overlay" onClick={() => setZoomItem(null)}>
+          <div className="zoom-box" onClick={e => e.stopPropagation()}>
+            <h2>Enter Price</h2>
+            <p style={{ margin: 0, color: '#666' }}>{zoomItem.nameEnglish}</p>
+            <input 
+              type="number" 
+              autoFocus
+              value={zoomValue} 
+              onChange={(e) => setZoomValue(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && saveZoom()}
+            />
+            <button className="a-btn primary" onClick={saveZoom}>Save Price</button>
+          </div>
+        </div>
+      )}
 
-      {/* CUSTOM WHATSAPP MODAL */}
+      {/* WHATSAPP MODAL */}
       {waOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <form onSubmit={handleWhatsApp} style={{ background: '#fff', padding: 24, borderRadius: 12, width: '100%', maxWidth: 360, display: 'grid', gap: 12 }}>
             <h3 style={{ margin: 0, color: '#00337a' }}>Send to WhatsApp</h3>
             <label style={{ display: 'grid', gap: 4, fontWeight: 'bold' }}>
               10-digit Mobile Number
-              <input
-                type="tel"
-                value={waPhone}
-                onChange={(e) => setWaPhone(e.target.value)}
-                placeholder="e.g. 9640254545"
-                style={{ padding: 10, border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }}
-                autoFocus
-              />
+              <input type="tel" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} placeholder="e.g. 9640254545" style={{ padding: 10, border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }} autoFocus />
             </label>
             <div className="row" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
               <button type="button" className="a-btn" onClick={() => setWaOpen(false)}>Cancel</button>
-              <button type="submit" className="a-btn" style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }}>
-                Open WhatsApp
-              </button>
+              <button type="submit" className="a-btn" style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }}>Open WhatsApp</button>
             </div>
           </form>
         </div>
@@ -334,16 +387,11 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
           <button className="a-btn" onClick={() => print('a5')}>🖨️ Print A5</button>
           <button className="a-btn" onClick={() => print('thermal110')}>🧾 Thermal 110 mm</button>
           <button className="a-btn" onClick={() => print('thermal')}>🧾 Thermal 80 mm</button>
-          <button className="a-btn" disabled={busy} onClick={pdf}>{busy ? 'Preparing…' : `⬇️ PDF (${format})`}</button>
-
-          <button 
-            className="a-btn" 
-            style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} 
-            onClick={() => setWaOpen(true)}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: 6 }}>
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
+          
+          <button className="a-btn" disabled={busy} onClick={() => downloadFile('pdf')}>{busy ? 'Wait…' : '⬇️ PDF'}</button>
+          <button className="a-btn" disabled={busy} onClick={() => downloadFile('image')}>{busy ? 'Wait…' : '⬇️ Image'}</button>
+          
+          <button className="a-btn" style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} onClick={() => setWaOpen(true)}>
             Send WhatsApp
           </button>
         </div>
@@ -358,8 +406,16 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
           {onNew && <Link className="a-btn" to="/admin/bills">Billing history</Link>}
         </div>
       </div>
+      
       <div className="inv-wrap">
-        <Invoice inv={inv} format={format} nodeRef={ref} editable={editable} onUpdateLine={onUpdateLine} />
+        <Invoice 
+          inv={inv} 
+          format={format} 
+          nodeRef={ref} 
+          editable={editable} 
+          onUpdateLine={onUpdateLine}
+          onPriceClick={openZoom} // THIS OPENS THE ZOOM POPUP
+        />
       </div>
     </div>
   );

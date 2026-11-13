@@ -1,32 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { TextToSpeech } from '@capacitor-community/text-to-speech'; // <-- VOICE IMPORT
 import { Capacitor } from '@capacitor/core';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { auth } from './firebase';
 import { useApp } from './context';
 import { useAdmin } from './admin/AdminShell';
 import { Invoice } from './admin/Invoice';
 import { buildDraftInvoice } from './billFromCart';
 import { CartLine, Grid, Loading, Logo, Photo, PriceBlock, ProductCard, Qty, StockTag, Totals } from './components';
-import { maxQty, searchProducts, stockInfo, unitPrice } from './lib';
+import { maxQty, searchProducts, stockInfo, unitPrice, money2 } from './lib';
 
 const nameOf = (c, lang) => (lang === 'te' && c.nameTelugu ? c.nameTelugu : c.nameEnglish);
 
-// --- VOICE HELPER ---
-export const speakTelugu = async (text) => {
-  if (!Capacitor.isNativePlatform()) return; // Only speak in APK
-  try {
-    await TextToSpeech.speak({
-      text: text || 'పేరు లేదు',
-      lang: 'te-IN',
-      rate: 0.9,
-      pitch: 1.0,
-      volume: 1.0,
-    });
-  } catch (e) {
-    console.error('TTS Error', e);
-  }
+const speakTelugu = async (text) => {
+  if (!Capacitor.isNativePlatform() && window.innerWidth > 800) return;
+  try { await TextToSpeech.speak({ text, lang: 'te-IN', rate: 0.9 }); } catch (e) {}
 };
 
 function CategoryCards() {
@@ -87,15 +76,12 @@ export function Finder({ initial = '' }) {
   );
 }
 
-// --- HOME PAGE (MACHINES ALBUM ONLY) ---
+// --- HOME PAGE (MACHINES ONLY) ---
 export function Home() {
   const { products, machines, loaded, t } = useApp();
   const [selectedMachine, setSelectedMachine] = useState(null);
-
-  // Get machines that have images
   const machineList = machines.filter(m => m.active !== false);
 
-  // Get products for the selected machine
   const machineProducts = selectedMachine 
     ? products.filter(p => p.compatibleMachines?.includes(selectedMachine.id))
     : [];
@@ -103,8 +89,8 @@ export function Home() {
   return (
     <>
       <section className="hero">
-        <div className="wrap hero-in">
-          <div className="hero-t"><Logo size={56} /><h1>NEW SRI RAMA LATHE WORKS</h1></div>
+        <div className="wrap hero-in" style={{ paddingBottom: 10 }}>
+          <div className="hero-t"><Logo size={56} /></div>
         </div>
       </section>
       
@@ -130,11 +116,7 @@ export function Home() {
         {selectedMachine && (
           <div style={{ marginTop: 30 }}>
             <h2 className="sec">Parts for {selectedMachine.brand} {selectedMachine.model}</h2>
-            {machineProducts.length === 0 ? (
-              <p className="empty">{t('noParts')}</p>
-            ) : (
-              <Grid list={machineProducts} />
-            )}
+            {machineProducts.length === 0 ? <p className="empty">{t('noParts')}</p> : <Grid list={machineProducts} />}
           </div>
         )}
       </div>
@@ -174,7 +156,7 @@ export function ProductsPage() {
     else if (s === 'name') l.sort((a, b) => a.nameEnglish.localeCompare(b.nameEnglish));
     else l.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     return l;
-  }, [sp, products, categories]); // eslint-disable-line
+  }, [sp, products, categories]);
 
   const activeCat = categories.find((c) => c.id === g('cat'));
   return (
@@ -216,9 +198,8 @@ export function ProductPage() {
   const cat = categories.find((c) => c.id === p.category);
   const fits = machines.filter((m) => p.compatibleMachines?.includes(m.id));
   const out = stockInfo(p) === 'out';
-  const rows = [
-    [t('brand'), p.brand], [t('category'), cat && nameOf(cat, lang)], [t('size'), p.size], [t('number'), p.productNumber], ['SKU', p.sku],
-  ].filter(([, v]) => v);
+  const rows = [ [t('brand'), p.brand], [t('category'), cat && nameOf(cat, lang)], [t('size'), p.size], [t('number'), p.productNumber], ['SKU', p.sku] ].filter(([, v]) => v);
+  
   return (
     <div className="wrap pd">
       <div className="pd-img">
@@ -232,7 +213,6 @@ export function ProductPage() {
         <h1>{p.nameEnglish}</h1>
         <p className="te big">{p.nameTelugu}</p>
         
-        {/* VOICE BUTTON FOR PRODUCT PAGE */}
         {Capacitor.isNativePlatform() && (
           <button 
             onClick={() => speakTelugu(`${p.nameEnglish}. ${p.nameTelugu}. Size ${p.size || p.productNumber}`)}
@@ -285,34 +265,30 @@ const printPageStyle = (fmt) => {
   let el = document.getElementById('rs-page');
   if (!el) { el = document.createElement('style'); el.id = 'rs-page'; document.head.appendChild(el); }
   el.textContent =
-    fmt === 'a4' ? '@page{size:A4;margin:8mm}' :
-    fmt === 'a5' ? '@page{size:A5;margin:6mm}' :
-    fmt === 'thermal110' ? '@page{size:110mm auto;margin:3mm}' :
-    '@page{size:80mm auto;margin:2mm}';
+    fmt === 'a4' ? '@page{size:A4;margin:6mm}'
+    : fmt === 'a5' ? '@page{size:A5;margin:6mm}'
+    : fmt === 'thermal110' ? '@page{size:110mm auto;margin:3mm}'
+    : '@page{size:80mm auto;margin:2mm}';
 };
 
 export function CartPage() {
   const { lines, loaded, t } = useApp();
   const { settings } = useAdmin();              
   const [view, setView] = useState('cart');     
-  const [printFmt, setPrintFmt] = useState('a5');
+  const [printFmt, setPrintFmt] = useState('a4');
   const [draft, setDraft] = useState(null);
+  const [busy, setBusy] = useState(false);
   
   const [draftLines, setDraftLines] = useState([]);
   const [dType, setDType] = useState('percent');
   const [dVal, setDVal] = useState('');
 
-  // Set default format for mobile APK
   useEffect(() => {
-    if (Capacitor.isNativePlatform() || window.innerWidth < 600) {
-      setPrintFmt('thermal'); // 80mm for mobile
-    }
+    if (Capacitor.isNativePlatform() || window.innerWidth < 600) setPrintFmt('thermal'); 
   }, []);
 
   useEffect(() => {
-    if (view === 'bill') {
-      setDraftLines(JSON.parse(JSON.stringify(lines)));
-    }
+    if (view === 'bill') setDraftLines(JSON.parse(JSON.stringify(lines)));
   }, [view]);
 
   useEffect(() => {
@@ -325,12 +301,45 @@ export function CartPage() {
     setDraftLines(prev => prev.map(l => l.product.id === id ? { ...l, ...updates } : l));
   };
 
-  const doPrint = () => { printPageStyle(printFmt); setTimeout(() => window.print(), 100); };
+  const doPrint = () => { 
+    speakTelugu('ప్రింట్ చేస్తున్నాము');
+    printPageStyle(printFmt); 
+    setTimeout(() => window.print(), 100); 
+  };
+
+  const downloadFile = async (type) => {
+    setBusy(true);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+      const el = document.querySelector('.inv'); // Finds the bill container
+      if (!el) return;
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      
+      if (type === 'image') {
+        const link = document.createElement('a');
+        link.download = `${draft.invoiceNo}.jpg`;
+        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        link.click();
+      } else {
+        const img = canvas.toDataURL('image/jpeg', 0.95);
+        let doc, w;
+        if (printFmt === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
+        else if (printFmt === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
+        else if (printFmt === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
+        else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
+        
+        const h = (canvas.height * w) / canvas.width;
+        doc.addImage(img, 'JPEG', 0, 0, w, h);
+        if (printFmt === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
+        if (printFmt === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
+        doc.save(`${draft.invoiceNo}-${printFmt}.pdf`);
+      }
+    } catch (e) { alert('Could not download: ' + e.message); }
+    setBusy(false);
+  };
 
   const sendWhatsApp = () => {
-    // Voice feedback on click
     speakTelugu('వాట్సాప్ తెరుస్తున్నాము');
-    
     let phone = window.prompt("Enter customer's WhatsApp number:");
     if (!phone) return; 
     
@@ -338,42 +347,29 @@ export function CartPage() {
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return alert("Please enter a valid phone number.");
 
-    let msg = `*${draft.shop.name}*\n`;
-    msg += `${draft.shop.address || ''}\n`;
-    if (draft.shop.phone) msg += `Ph: ${draft.shop.phone}\n`;
-    msg += `---------------------------------\n`;
-    msg += `*Bill No:* ${draft.invoiceNo}\n`;
-    msg += `*Date:* ${new Date().toLocaleDateString('en-IN')}\n`;
-    msg += `---------------------------------\n\n`;
+    let msg = `*${draft.shop.name}*\n${draft.shop.address || ''}\nPh: ${draft.shop.phone || ''}\n---------------------------------\n*Bill No:* ${draft.invoiceNo}\n*Date:* ${new Date().toLocaleDateString('en-IN')}\n---------------------------------\n\n`;
     
     draft.items.forEach((item, index) => {
-      msg += `${index + 1}. *${item.nameEnglish}*`;
-      if (item.nameTelugu) msg += ` / ${item.nameTelugu}`;
-      msg += `\n`;
+      msg += `${index + 1}. *${item.nameEnglish}*${item.nameTelugu ? ` / ${item.nameTelugu}` : ''}\n`;
       msg += `   Qty: ${item.qty} x ₹${money2(item.unitPrice).replace('₹', '')} = *₹${money2(item.amount).replace('₹', '')}*\n\n`;
     });
 
-    msg += `---------------------------------\n`;
-    msg += `Subtotal: ₹${money2(draft.subtotal).replace('₹', '')}\n`;
+    msg += `---------------------------------\nSubtotal: ₹${money2(draft.subtotal).replace('₹', '')}\n`;
     if (draft.discount > 0) msg += `Discount: -₹${money2(draft.discount).replace('₹', '')}\n`;
-    msg += `*GRAND TOTAL: ₹${money2(draft.total).replace('₹', '')}*\n`;
-    msg += `---------------------------------\n\n`;
-    msg += `Thank you for shopping with us!`;
+    msg += `*GRAND TOTAL: ₹${money2(draft.total).replace('₹', '')}*\n---------------------------------\n\nThank you!`;
 
     const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`;
-    const win = window.open(url, '_blank');
-    if (!win) window.location.href = url;
+    window.open(url, '_blank');
   };
 
   if (!loaded) return <div className="wrap narrow"><Loading /></div>;
 
-  // -------- CART VIEW --------
   if (view === 'cart') {
     if (lines.length === 0) return (
       <div className="wrap narrow">
         <h1>{t('cart')}</h1>
         <p className="empty">{t('emptyCart')}</p>
-        <p className="center"><Link to="/products" className="btn wide">{t('continue')}</Link></p>
+        <p className="center"><Link to="/products" className="btn wide" onClick={() => speakTelugu('షాపింగ్ కొనసాగించండి')}>{t('continue')}</Link></p>
       </div>
     );
     return (
@@ -414,7 +410,6 @@ export function CartPage() {
     );
   }
 
-  // -------- BILL PREVIEW VIEW --------
   if (!draft) return null;
 
   return (
@@ -422,12 +417,10 @@ export function CartPage() {
       <div className="no-print">
         <div className="a-head">
           <h1>Bill preview</h1>
-          <button className="a-btn" onClick={() => setView('cart')}>← Back to cart</button>
+          <button className="a-btn" onClick={() => { speakTelugu('వెనుకకు'); setView('cart'); }}>← Back to cart</button>
         </div>
         
         <div className="row" style={{ marginBottom: 8 }}>
-          {/* HIDE THE SPEAKER ICON HERE AS REQUESTED */}
-          
           <div className="seg2">
             {[['a4', 'A4'], ['a5', 'A5'], ['thermal110', '110 mm'], ['thermal', '80 mm']].map(([f, l]) => (
               <button key={f} className={printFmt === f ? 'on' : ''} onClick={() => setPrintFmt(f)}>{l}</button>
@@ -435,25 +428,16 @@ export function CartPage() {
           </div>
           <button className="a-btn primary" onClick={doPrint}>🖨️ PRINT BILL</button>
           
-          <button 
-            className="a-btn" 
-            style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} 
-            onClick={sendWhatsApp}
-          >
-            Send WhatsApp
-          </button>
+          <button className="a-btn" disabled={busy} onClick={() => downloadFile('pdf')}>{busy ? 'Wait…' : '⬇️ PDF'}</button>
+          <button className="a-btn" disabled={busy} onClick={() => downloadFile('image')}>{busy ? 'Wait…' : '⬇️ Image'}</button>
 
-          <button className="a-btn" onClick={() => setView('cart')}>Edit cart</button>
+          <button className="a-btn" style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} onClick={sendWhatsApp}>Send WhatsApp</button>
+          <button className="a-btn" onClick={() => { speakTelugu('మార్చండి'); setView('cart'); }}>Edit cart</button>
         </div>
       </div>
 
       <div className="inv-wrap">
-        <Invoice 
-          inv={draft} 
-          format={printFmt} 
-          editable={true} 
-          onUpdateLine={updateDraftLine} 
-        />
+        <Invoice inv={draft} format={printFmt} editable={true} onUpdateLine={updateDraftLine} />
       </div>
     </div>
   );
