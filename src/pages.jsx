@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Capacitor } from '@capacitor/core';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
 import { useApp } from './context';
 import { useAdmin } from './admin/AdminShell';
 import { Invoice } from './admin/Invoice';
@@ -15,7 +16,7 @@ const nameOf = (c, lang) => (lang === 'te' && c.nameTelugu ? c.nameTelugu : c.na
 
 const speakTelugu = async (text) => {
   if (!Capacitor.isNativePlatform() && window.innerWidth > 800) return;
-  try { await TextToSpeech.speak({ text, lang: 'te-IN', rate: 0.9 }); } catch (e) {}
+  try { await TextToSpeech.stop(); await TextToSpeech.speak({ text, lang: 'te-IN', rate: 0.9 }); } catch (e) {}
 };
 
 function CategoryCards() {
@@ -76,51 +77,42 @@ export function Finder({ initial = '' }) {
   );
 }
 
-// --- HOME PAGE (MACHINES ONLY) ---
 export function Home() {
   const { products, machines, loaded, t } = useApp();
   const [selectedMachine, setSelectedMachine] = useState(null);
   const machineList = machines.filter(m => m.active !== false);
 
-  const machineProducts = selectedMachine 
+  const machineProducts = selectedMachine
     ? products.filter(p => p.compatibleMachines?.includes(selectedMachine.id))
     : [];
 
   return (
-    <>
-      <section className="hero">
-        <div className="wrap hero-in" style={{ paddingBottom: 10 }}>
-          <div className="hero-t"><Logo size={56} /></div>
+    <div className="wrap" style={{ paddingTop: 20 }}>
+      <h2 className="sec">{t('finder')} (Machines)</h2>
+      {!loaded ? <Loading /> : (
+        <div className="cats" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
+          {machineList.map(m => (
+            <button
+              key={m.id}
+              className="cat"
+              onClick={() => setSelectedMachine(m)}
+              style={{ border: selectedMachine?.id === m.id ? '3px solid #00337a' : '1.5px solid var(--line)', cursor: 'pointer', background: '#fff' }}
+            >
+              {m.imageUrl ? <img className="cat-img" src={m.imageUrl} alt="" style={{ width: 80, height: 80, objectFit: 'contain' }} /> : <span className="cat-i">🚜</span>}
+              <b>{m.brand} {m.model}</b>
+              <small>{m.type || 'Machine'}</small>
+            </button>
+          ))}
         </div>
-      </section>
-      
-      <div className="wrap">
-        <h2 className="sec">{t('finder')} (Machines)</h2>
-        {!loaded ? <Loading /> : (
-          <div className="cats" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
-            {machineList.map(m => (
-              <button 
-                key={m.id} 
-                className="cat" 
-                onClick={() => setSelectedMachine(m)}
-                style={{ border: selectedMachine?.id === m.id ? '3px solid #00337a' : '1.5px solid var(--line)', cursor: 'pointer', background: '#fff' }}
-              >
-                {m.imageUrl ? <img className="cat-img" src={m.imageUrl} alt="" style={{ width: 80, height: 80, objectFit: 'contain' }} /> : <span className="cat-i">🚜</span>}
-                <b>{m.brand} {m.model}</b>
-                <small>{m.type || 'Machine'}</small>
-              </button>
-            ))}
-          </div>
-        )}
+      )}
 
-        {selectedMachine && (
-          <div style={{ marginTop: 30 }}>
-            <h2 className="sec">Parts for {selectedMachine.brand} {selectedMachine.model}</h2>
-            {machineProducts.length === 0 ? <p className="empty">{t('noParts')}</p> : <Grid list={machineProducts} />}
-          </div>
-        )}
-      </div>
-    </>
+      {selectedMachine && (
+        <div style={{ marginTop: 30 }}>
+          <h2 className="sec">Parts for {selectedMachine.brand} {selectedMachine.model}</h2>
+          {machineProducts.length === 0 ? <p className="empty">{t('noParts')}</p> : <Grid list={machineProducts} />}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -199,7 +191,7 @@ export function ProductPage() {
   const fits = machines.filter((m) => p.compatibleMachines?.includes(m.id));
   const out = stockInfo(p) === 'out';
   const rows = [ [t('brand'), p.brand], [t('category'), cat && nameOf(cat, lang)], [t('size'), p.size], [t('number'), p.productNumber], ['SKU', p.sku] ].filter(([, v]) => v);
-  
+
   return (
     <div className="wrap pd">
       <div className="pd-img">
@@ -212,12 +204,10 @@ export function ProductPage() {
       <div className="pd-b">
         <h1>{p.nameEnglish}</h1>
         <p className="te big">{p.nameTelugu}</p>
-        
+
         {Capacitor.isNativePlatform() && (
-          <button 
-            onClick={() => speakTelugu(`${p.nameEnglish}. ${p.nameTelugu}. Size ${p.size || p.productNumber}`)}
-            style={{ background: '#f4b400', border: 'none', padding: '10px 16px', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '10px', color: '#1c2b36' }}
-          >
+          <button onClick={() => speakTelugu(`${p.nameEnglish}. ${p.nameTelugu}. Size ${p.size || p.productNumber}`)}
+            style={{ background: '#f4b400', border: 'none', padding: '10px 16px', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '10px', color: '#1c2b36' }}>
             🔊 వినండి (Listen)
           </button>
         )}
@@ -272,20 +262,43 @@ const printPageStyle = (fmt) => {
 };
 
 export function CartPage() {
-  const { lines, loaded, t } = useApp();
-  const { settings } = useAdmin();              
-  const [view, setView] = useState('cart');     
+  const { lines, loaded, t, clearCart, flash } = useApp();
+  const { settings } = useAdmin();
+  const [view, setView] = useState('cart');
   const [printFmt, setPrintFmt] = useState('a4');
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
-  
+  const [saving, setSaving] = useState(false);
+
   const [draftLines, setDraftLines] = useState([]);
   const [dType, setDType] = useState('percent');
   const [dVal, setDVal] = useState('');
 
+  // --- ZOOM POPUP STATE FOR PRICE EDIT ---
+  const [zoomItem, setZoomItem] = useState(null);
+  const [zoomValue, setZoomValue] = useState('');
+
   useEffect(() => {
-    if (Capacitor.isNativePlatform() || window.innerWidth < 600) setPrintFmt('thermal'); 
+    if (Capacitor.isNativePlatform() || window.innerWidth < 600) setPrintFmt('thermal');
   }, []);
+
+  // --- SWIPE BACK HANDLING FOR BILL PREVIEW ---
+  useEffect(() => {
+    const handlePopState = () => { setView('cart'); };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const openBillPreview = () => {
+    setView('bill');
+    window.history.pushState({ view: 'bill' }, '');
+  };
+
+  const closeBillPreview = () => {
+    setView('cart');
+    window.history.back();
+  };
+  // ---------------------------------------------
 
   useEffect(() => {
     if (view === 'bill') setDraftLines(JSON.parse(JSON.stringify(lines)));
@@ -298,57 +311,153 @@ export function CartPage() {
   }, [view, draftLines, settings, dType, dVal]);
 
   const updateDraftLine = (id, updates) => {
-    setDraftLines(prev => prev.map(l => l.product.id === id ? { ...l, ...updates } : l));
+    setDraftLines(prev => prev.map(l => {
+      if (l.product.id === id) {
+        if ('customPrice' in updates) {
+          const val = updates.customPrice;
+          const num = val === '' ? 0 : Number(val);
+          return { ...l, customPrice: val, amount: num * l.qty };
+        }
+        return { ...l, ...updates };
+      }
+      return l;
+    }));
   };
 
-  const doPrint = () => { 
+  // --- ZOOM POPUP HANDLERS ---
+  const openZoom = (item) => {
+    setZoomItem(item);
+    setZoomValue(item.unitPrice !== undefined && item.unitPrice !== '' ? String(item.unitPrice) : '');
+  };
+
+  const saveZoom = () => {
+    if (zoomItem) {
+      updateDraftLine(zoomItem.productId, { customPrice: zoomValue });
+    }
+    setZoomItem(null);
+  };
+  // ---------------------------
+
+  const doPrint = () => {
     speakTelugu('ప్రింట్ చేస్తున్నాము');
-    printPageStyle(printFmt); 
-    setTimeout(() => window.print(), 100); 
+    printPageStyle(printFmt);
+    setTimeout(() => window.print(), 100);
   };
 
+  // --- SAVE BILL TO FIREBASE (NO DUPLICATES, NO LARGE IMAGES) ---
+  const saveBillToAdmin = async () => {
+    if (saving || !draft) return;
+    setSaving(true);
+    speakTelugu('బిల్లు సేవ్ అవుతోంది');
+
+    try {
+      const cleanItems = draft.items.map(item => {
+        const { billImageUrl, ...rest } = item;
+        return rest;
+      });
+
+      const billRef = doc(db, 'invoices', draft.invoiceNo);
+      const existing = await getDoc(billRef);
+      const isUpdate = existing.exists();
+
+      const payload = {
+        ...draft,
+        items: cleanItems,
+        status: 'completed',
+        createdAt: isUpdate ? existing.data().createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(billRef, payload, { merge: true });
+
+      if (isUpdate) {
+        alert('Bill updated in Admin successfully!');
+        speakTelugu('బిల్లు అప్‌డేట్ చేయబడింది');
+      } else {
+        alert('Bill saved to Admin successfully!');
+        speakTelugu('బిల్లు విజయవంతంగా సేవ్ చేయబడింది');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save bill: ' + err.message);
+    }
+    setSaving(false);
+  };
+  // ---------------------------------------------
+
+  // --- NEW STABLE DOWNLOAD LOGIC ---
   const downloadFile = async (type) => {
     setBusy(true);
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
-      const el = document.querySelector('.inv'); // Finds the bill container
-      if (!el) return;
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-      
-      if (type === 'image') {
-        const link = document.createElement('a');
-        link.download = `${draft.invoiceNo}.jpg`;
-        link.href = canvas.toDataURL('image/jpeg', 0.95);
-        link.click();
+      if (Capacitor.isNativePlatform()) {
+        if (type === 'pdf') {
+          // NATIVE ANDROID PDF: Use the print dialog, user selects "Save as PDF"
+          const { Printer } = await import('@capgo/capacitor-printer');
+          await Printer.printWebView();
+        } else {
+          // NATIVE ANDROID IMAGE: Use FileSharer to save/share the image
+          const { FileSharer } = await import('@capgo/capacitor-file-sharer');
+          const [{ default: html2canvas }] = await Promise.all([import('html2canvas')]);
+          const el = document.querySelector('.inv');
+          if (!el) return;
+
+          // Lower scale to prevent memory crash
+          const canvas = await html2canvas(el, { scale: 0.8, backgroundColor: '#ffffff', useCORS: true });
+          const base64Data = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+
+          await FileSharer.share({
+            filename: `${draft.invoiceNo}.jpg`,
+            contentType: 'image/jpeg',
+            base64Data: base64Data,
+            title: 'Bill ' + draft.invoiceNo,
+          });
+        }
       } else {
-        const img = canvas.toDataURL('image/jpeg', 0.95);
-        let doc, w;
-        if (printFmt === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
-        else if (printFmt === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
-        else if (printFmt === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
-        else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
-        
-        const h = (canvas.height * w) / canvas.width;
-        doc.addImage(img, 'JPEG', 0, 0, w, h);
-        if (printFmt === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
-        if (printFmt === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
-        doc.save(`${draft.invoiceNo}-${printFmt}.pdf`);
+        // WEB BROWSER FALLBACK
+        const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+        const el = document.querySelector('.inv');
+        if (!el) return;
+        const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+
+        if (type === 'image') {
+          const link = document.createElement('a');
+          link.download = `${draft.invoiceNo}.jpg`;
+          link.href = canvas.toDataURL('image/jpeg', 0.95);
+          link.click();
+        } else {
+          const img = canvas.toDataURL('image/jpeg', 0.95);
+          let doc, w;
+          if (printFmt === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
+          else if (printFmt === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
+          else if (printFmt === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
+          else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
+
+          const h = (canvas.height * w) / canvas.width;
+          doc.addImage(img, 'JPEG', 0, 0, w, h);
+          if (printFmt === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
+          if (printFmt === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
+          doc.save(`${draft.invoiceNo}-${printFmt}.pdf`);
+        }
       }
-    } catch (e) { alert('Could not download: ' + e.message); }
+    } catch (e) {
+      console.error(e);
+      alert('Could not download. Use the Print button and select "Save as PDF" instead.');
+    }
     setBusy(false);
   };
+  // ---------------------------------------------
 
   const sendWhatsApp = () => {
     speakTelugu('వాట్సాప్ తెరుస్తున్నాము');
     let phone = window.prompt("Enter customer's WhatsApp number:");
-    if (!phone) return; 
-    
+    if (!phone) return;
+
     let cleanPhone = phone.replace(/[^0-9]/g, '');
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return alert("Please enter a valid phone number.");
 
     let msg = `*${draft.shop.name}*\n${draft.shop.address || ''}\nPh: ${draft.shop.phone || ''}\n---------------------------------\n*Bill No:* ${draft.invoiceNo}\n*Date:* ${new Date().toLocaleDateString('en-IN')}\n---------------------------------\n\n`;
-    
+
     draft.items.forEach((item, index) => {
       msg += `${index + 1}. *${item.nameEnglish}*${item.nameTelugu ? ` / ${item.nameTelugu}` : ''}\n`;
       msg += `   Qty: ${item.qty} x ₹${money2(item.unitPrice).replace('₹', '')} = *₹${money2(item.amount).replace('₹', '')}*\n\n`;
@@ -364,6 +473,7 @@ export function CartPage() {
 
   if (!loaded) return <div className="wrap narrow"><Loading /></div>;
 
+  // -------- CART VIEW --------
   if (view === 'cart') {
     if (lines.length === 0) return (
       <div className="wrap narrow">
@@ -374,9 +484,28 @@ export function CartPage() {
     );
     return (
       <div className="wrap narrow">
-        <h1>{t('cart')}</h1>
+        <div className="a-head">
+          <h1>{t('cart')}</h1>
+          {/* CLEAR CART BUTTON */}
+          <button
+            className="a-btn danger"
+            onClick={() => {
+              speakTelugu('కార్ట్ లోని అన్ని వస్తువులు తొలగించాలా?');
+              setTimeout(() => {
+                if (window.confirm("Are you sure you want to remove all items from the cart?")) {
+                  speakTelugu('కార్ట్ లోని అన్ని వస్తువులు తొలగించబడ్డాయి');
+                  clearCart();
+                  flash('Cart cleared successfully!');
+                }
+              }, 500);
+            }}
+          >
+            Clear Cart
+          </button>
+        </div>
+
         {lines.map((l) => <CartLine key={l.product.id} line={l} />)}
-        
+
         <div className="cols" style={{ marginTop: 15 }}>
           <label>Discount
             <span className="row">
@@ -396,11 +525,10 @@ export function CartPage() {
           <button
             className="btn"
             style={{ marginLeft: 'auto' }}
-            onClick={() => { 
+            onClick={() => {
               speakTelugu('బిల్లు చూపిస్తున్నాము');
-              setPrintFmt(Capacitor.isNativePlatform() || window.innerWidth < 600 ? 'thermal' : 'a5'); 
-              setView('bill'); 
-              window.scrollTo(0, 0); 
+              setPrintFmt(Capacitor.isNativePlatform() || window.innerWidth < 600 ? 'thermal' : 'a5');
+              openBillPreview();
             }}
           >
             VIEW BILL →
@@ -410,16 +538,35 @@ export function CartPage() {
     );
   }
 
+  // -------- BILL PREVIEW VIEW --------
   if (!draft) return null;
 
   return (
     <div className="wrap">
+      {/* ZOOM POPUP FOR PRICE EDITING */}
+      {zoomItem && (
+        <div className="zoom-overlay" onClick={() => setZoomItem(null)}>
+          <div className="zoom-box" onClick={e => e.stopPropagation()}>
+            <h2>Enter Price</h2>
+            <p style={{ margin: 0, color: '#666' }}>{zoomItem.nameEnglish}</p>
+            <input
+              type="number"
+              autoFocus
+              value={zoomValue}
+              onChange={(e) => setZoomValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && saveZoom()}
+            />
+            <button className="a-btn primary" onClick={saveZoom}>Save Price</button>
+          </div>
+        </div>
+      )}
+
       <div className="no-print">
         <div className="a-head">
           <h1>Bill preview</h1>
-          <button className="a-btn" onClick={() => { speakTelugu('వెనుకకు'); setView('cart'); }}>← Back to cart</button>
+          <button className="a-btn" onClick={() => { speakTelugu('వెనుకకు'); closeBillPreview(); }}>← Back to cart</button>
         </div>
-        
+
         <div className="row" style={{ marginBottom: 8 }}>
           <div className="seg2">
             {[['a4', 'A4'], ['a5', 'A5'], ['thermal110', '110 mm'], ['thermal', '80 mm']].map(([f, l]) => (
@@ -427,17 +574,27 @@ export function CartPage() {
             ))}
           </div>
           <button className="a-btn primary" onClick={doPrint}>🖨️ PRINT BILL</button>
-          
+
+          <button className="a-btn" disabled={saving} onClick={saveBillToAdmin} style={{ backgroundColor: '#00337a', color: '#fff', borderColor: '#00337a', fontWeight: 'bold' }}>
+            {saving ? 'Saving...' : '💾 Save to Admin'}
+          </button>
+
           <button className="a-btn" disabled={busy} onClick={() => downloadFile('pdf')}>{busy ? 'Wait…' : '⬇️ PDF'}</button>
           <button className="a-btn" disabled={busy} onClick={() => downloadFile('image')}>{busy ? 'Wait…' : '⬇️ Image'}</button>
 
           <button className="a-btn" style={{ backgroundColor: '#25D366', color: '#fff', borderColor: '#25D366', fontWeight: 'bold' }} onClick={sendWhatsApp}>Send WhatsApp</button>
-          <button className="a-btn" onClick={() => { speakTelugu('మార్చండి'); setView('cart'); }}>Edit cart</button>
+          <button className="a-btn" onClick={() => { speakTelugu('మార్చండి'); closeBillPreview(); }}>Edit cart</button>
         </div>
       </div>
 
       <div className="inv-wrap">
-        <Invoice inv={draft} format={printFmt} editable={true} onUpdateLine={updateDraftLine} />
+        <Invoice
+          inv={draft}
+          format={printFmt}
+          editable={true}
+          onUpdateLine={updateDraftLine}
+          onPriceClick={openZoom}
+        />
       </div>
     </div>
   );

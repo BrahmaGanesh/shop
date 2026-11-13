@@ -1,4 +1,3 @@
-
 import {
   createContext,
   useCallback,
@@ -249,6 +248,11 @@ export function AppProvider({ children }) {
     [change]
   );
 
+  // NEW: Clear the entire cart
+  const clearCart = useCallback(() => {
+    change(() => []);
+  }, [change]);
+
 
   // Remove cart lines for products that no longer exist
   // or are hidden once the catalogue has loaded.
@@ -321,13 +325,6 @@ export function AppProvider({ children }) {
 
         const currentRequest = ++requestId;
 
-        console.log('-----------------------------');
-        console.log('FIREBASE AUTH CHECK');
-        console.log('-----------------------------');
-
-        console.log('AUTH USER:', u?.email || null);
-        console.log('AUTH UID:', u?.uid || null);
-
         setAuthReady(false);
         setAuthError(null);
 
@@ -339,16 +336,6 @@ export function AppProvider({ children }) {
 
             const userRef = doc(db, 'users', u.uid);
             const s = await getDoc(userRef);
-
-            console.log(
-              'FIRESTORE DOCUMENT EXISTS:',
-              s.exists()
-            );
-
-            console.log(
-              'FIRESTORE USER DATA:',
-              s.exists() ? s.data() : null
-            );
 
             r = s.exists() ? s.data().role : null;
 
@@ -369,15 +356,6 @@ export function AppProvider({ children }) {
         if (currentRequest !== requestId) {
           return;
         }
-
-        console.log('FINAL ROLE:', r);
-        console.log(
-          'ROLE ERROR:',
-          roleError
-        );
-
-        console.log('AUTH CHECK COMPLETE');
-        console.log('-----------------------------');
 
         setRole(r);
         setUser(u);
@@ -417,6 +395,7 @@ export function AppProvider({ children }) {
     addToCart,
     setQty,
     removeItem,
+    clearCart, // <-- Added clearCart to the context
     drawer,
     setDrawer,
     toast,

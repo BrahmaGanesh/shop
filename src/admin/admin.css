@@ -369,3 +369,37 @@
 .zoom-box button {
   padding: 12px; font-size: 1.1rem; border-radius: 8px; border: none; cursor: pointer;
 }
+
+/* =====================================================================
+   STRICT PRINT CLARITY & HIDE SPEAKERS (Force Black Text, No Buttons)
+   ===================================================================== */
+@media print {
+  /* Force crisp black text and graphics for printers */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color: #000 !important;
+  }
+
+  /* Hide all speaker icons and buttons */
+  .no-print, button {
+    display: none !important;
+  }
+
+  /* Make the price input look like plain text on paper */
+  .price-input {
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    text-align: center !important;
+    font-weight: bold !important;
+    font-size: 1em !important;
+    color: #000 !important;
+    width: auto !important;
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+  }
+}

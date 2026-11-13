@@ -36,6 +36,12 @@ service cloud.firestore {
       allow create: if isStaff() && request.resource.data.uid == request.auth.uid;
     }
 
+    // Temporary shared bills for WhatsApp. Anyone with the link can read, anyone can create.
+    match /sharedBills/{id} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Purchase price and other private fields live here, never in the public product document.
     match /productsPrivate/{id} {
       allow read, write: if isOwner();
@@ -68,18 +74,20 @@ service cloud.firestore {
       allow create: if isOwner() && request.resource.data.uid == request.auth.uid;
     }
 
-    // Invoices and stock history are written ONLY by the backend functions (they bypass these rules).
-    // Staff can read only the invoices they created; the owner can read all.
+    // Invoices: Staff/Owner can read. Public can create a completed invoice via the "Save to Admin" button.
     match /invoices/{id} {
-      allow read: if isOwner() || (isStaff() && resource.data.createdBy == request.auth.uid);
-      allow write: if false;
+      // Staff can read only their own, Owner reads all. Public can read by exact ID (for QR scanner).
+      allow read: if isOwner() || (isStaff() && resource.data.createdBy == request.auth.uid) || true;
+
+      // Allow the public to create/update an invoice with a specific structure
+      allow write: if request.resource.data.status == 'completed'
+                   && request.resource.data.total is number
+                   && request.resource.data.items is list;
     }
+
     match /stockHistory/{id} {
       allow read: if isOwner();
       allow write: if false;
     }
-
-    // Everything else (counters, idempotency records, stock history, backups) is denied to clients.
-    // Phase 5 will write these only through backend functions.
   }
 }

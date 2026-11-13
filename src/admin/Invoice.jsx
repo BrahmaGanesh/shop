@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Capacitor } from '@capacitor/core';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
-import { Printer } from '@capgo/capacitor-printer';
 import { money2 } from '../lib';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -36,6 +35,8 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
   const isThermal = format === 'thermal' || format === 'thermal110';
   const now = liveNow();
   const sizeNo = (i) => [i.size, i.productNumber].filter(Boolean).join(' / ');
+  const voiceSize = (i) => i.size || '';
+
   const upiLink = `upi://pay?pa=${SHOP.upiId}&pn=${encodeURIComponent(SHOP.name)}&am=${inv.total}&cu=INR&tn=${encodeURIComponent('Bill ' + inv.invoiceNo)}`;
 
   const ITEMS_PER_PAGE = format === 'a4' ? 50 : format === 'a5' ? 28 : 9999;
@@ -70,8 +71,15 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                 <div className="th-name">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                     <b>{i.nameEnglish}{i.nameTelugu ? ` / ${i.nameTelugu}` : ''}</b>
+                    {/* FIXED: Added no-print class */}
                     {Capacitor.isNativePlatform() && (
-                      <button onClick={() => speakTelugu(`${i.nameTelugu}, ${i.qty} క్వాంటిటీ`)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>🔊</button>
+                      <button
+                        className="no-print"
+                        onClick={() => speakTelugu(`${i.nameTelugu || i.nameEnglish}. Size ${voiceSize(i)}. Quantity ${i.qty}`)}
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}
+                      >
+                        🔊
+                      </button>
                     )}
                   </div>
                   {sizeNo(i) ? <div className="th-size">Size: <b>{sizeNo(i)}</b></div> : null}
@@ -80,9 +88,10 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                 <div className="th-price">
                   {editable && onUpdateLine ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                      <input type="number" min="0" step="any" value={i.unitPrice} onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })} style={{ width: '45px', textAlign: 'right', fontWeight: 'bold', padding: '2px', border: '1px solid #000' }} />
+                      <input type="number" min="0" step="any" value={i.unitPrice} onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })} className="price-input" style={{ width: '55px', textAlign: 'right', fontWeight: 'bold', padding: '2px' }} />
+                      {/* FIXED: Added no-print class */}
                       {Capacitor.isNativePlatform() && (
-                        <button onClick={() => speakTelugu(`ధర ${i.unitPrice}`)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>🔊</button>
+                        <button className="no-print" onClick={() => speakTelugu(`ధర ${i.unitPrice}`)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>🔊</button>
                       )}
                     </div>
                   ) : (`₹${money2(i.amount).replace('₹', '')}`)}
@@ -137,8 +146,15 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                           <b>{i.nameEnglish}{i.nameTelugu ? ` / ${i.nameTelugu}` : ''}</b>
+                          {/* FIXED: Added no-print class */}
                           {Capacitor.isNativePlatform() && (
-                            <button className="no-print" onClick={() => speakTelugu(`${i.nameTelugu || i.nameEnglish}, ${i.qty} క్వాంటిటీ`)} style={{ background: '#f4b400', border: 'none', borderRadius: '50%', width: 24, height: 24, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>🔊</button>
+                            <button
+                              className="no-print"
+                              onClick={() => speakTelugu(`${i.nameTelugu || i.nameEnglish}. Size ${voiceSize(i)}. Quantity ${i.qty}`)}
+                              style={{ background: '#f4b400', border: 'none', borderRadius: '50%', width: 24, height: 24, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                            >
+                              🔊
+                            </button>
                           )}
                         </div>
                       </td>
@@ -147,7 +163,8 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                       <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
                         {editable && onUpdateLine ? (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                            <input type="number" min="0" step="any" value={i.unitPrice} onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })} className="price-input" style={{ width: '60px', textAlign: 'center', fontWeight: 'bold' }} />
+                            <input type="number" min="0" step="any" value={i.unitPrice} onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })} className="price-input" style={{ width: '70px', textAlign: 'center', fontWeight: 'bold', fontSize: '1.2rem', padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                            {/* FIXED: Added no-print class */}
                             {Capacitor.isNativePlatform() && (
                               <button className="no-print" onClick={() => speakTelugu(`ధర ${i.unitPrice}`)} style={{ background: '#f4b400', border: 'none', borderRadius: '50%', width: 24, height: 24, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>🔊</button>
                             )}
@@ -211,6 +228,7 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
       pageStyle(f);
       if (Capacitor.isNativePlatform()) {
         try {
+          const { Printer } = await import('@capgo/capacitor-printer');
           await Printer.printWebView();
         } catch (error) { alert("Printer not connected."); }
       } else {
@@ -237,16 +255,27 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     setWaOpen(false);
   };
 
-  // DOWNLOAD FIX: Use Native PDF Print (Android will offer "Save as PDF")
   const downloadFile = async (type) => {
     setBusy(true);
     try {
       if (Capacitor.isNativePlatform()) {
-        // On Android, native Print is the most stable way to "Download PDF"
-        // It opens the Android Print menu which has a "Save as PDF" option
-        await Printer.printWebView();
+        if (type === 'pdf') {
+          const { Printer } = await import('@capgo/capacitor-printer');
+          await Printer.printWebView();
+        } else {
+          const { FileSharer } = await import('@capgo/capacitor-file-sharer');
+          const [{ default: html2canvas }] = await Promise.all([import('html2canvas')]);
+          const canvas = await html2canvas(ref.current, { scale: 0.8, backgroundColor: '#ffffff', useCORS: true });
+          const base64Data = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+
+          await FileSharer.share({
+            filename: `${inv.invoiceNo}.jpg`,
+            contentType: 'image/jpeg',
+            base64Data: base64Data,
+            title: 'Bill ' + inv.invoiceNo,
+          });
+        }
       } else {
-        // On Web, generate the file with html2canvas
         const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
         const canvas = await html2canvas(ref.current, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true });
         let dataUrl, fileName;
