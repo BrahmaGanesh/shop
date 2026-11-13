@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
@@ -14,6 +14,9 @@ export const speakTelugu = async (text) => {
   if (!Capacitor.isNativePlatform() && !isMobile) return; 
 
   try {
+    // Stop any currently playing speech to prevent the "interrupted" error
+    await TextToSpeech.stop();
+    
     await TextToSpeech.speak({
       text: text || 'పేరు లేదు',
       lang: 'te-IN',
@@ -22,7 +25,10 @@ export const speakTelugu = async (text) => {
       volume: 1.0,
     });
   } catch (e) {
-    console.error('TTS Error', e);
+    // Ignore the "interrupted" error silently, as it just means a new button was clicked
+    if (!e.message?.includes('interrupted')) {
+      console.error('TTS Error', e);
+    }
   }
 };
 
@@ -152,9 +158,7 @@ export function ProductCard({ p }) {
   const cartItem = items.find((i) => i.id === p.id);
   const cartQty = cartItem ? cartItem.qty : 0;
 
-  // Check if we are on Mobile or APK to show speaker
   const isMobileView = window.innerWidth < 800 || Capacitor.isNativePlatform();
-  
   const voiceText = `${p.nameTelugu || p.nameEnglish}. Size ${p.size || p.productNumber || ''}`;
 
   return (
@@ -241,12 +245,25 @@ export function CartLine({ line }) {
   const { product: p, qty, customPrice } = line;
   
   const u = customPrice !== undefined && customPrice !== '' ? Number(customPrice) : unitPrice(p);
+  const isMobileView = window.innerWidth < 800 || Capacitor.isNativePlatform();
 
   return (
     <div className="line">
       <div className="line-img"><Photo p={p} /></div>
       <div className="line-b">
-        <Link to={`/product/${p.id}`}><b>{p.nameEnglish}</b></Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Link to={`/product/${p.id}`}><b>{p.nameEnglish}</b></Link>
+          {/* SPEAKER BUTTON IN CART */}
+          {isMobileView && (
+            <button 
+              onClick={() => speakTelugu(`${p.nameTelugu || p.nameEnglish}, ${qty} క్వాంటిటీ, మొత్తం ${money(u * qty)}`)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: 0 }}
+              aria-label="Listen"
+            >
+              🔊
+            </button>
+          )}
+        </div>
         <span className="te">{p.nameTelugu}</span>
         <small>{[p.size, p.productNumber].filter(Boolean).join(' / ')}</small>
         <small>{u == null ? t('notAdded') : `${money(u)} × ${qty} = ${money(u * qty)}`}</small>

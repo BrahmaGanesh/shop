@@ -127,19 +127,6 @@
 /* --- CROPS THE A4/A5 IMAGE TO A PERFECT SQUARE --- */
 .inv-img { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; background: #fff; display: inline-block; border: 1px solid #ccc; }
 
-/* -------- A4 Sizing -------- */
-.inv.a4 { width:794px; min-height:500px; padding:34px; font-size:14px; }
-.inv.a4 .inv-hd-name { font-size: 2.4em; }
-.inv.a4 .inv-tbl th { padding: 10px 4px; font-size: 1.4em; }
-.inv.a4 .inv-tbl td { padding: 10px 1px; font-size: 1.7em; }
-.inv.a4 .inv-img { width: 56px; height: 56px; }
-
-/* -------- A5 Sizing -------- */
-.inv.a5 { width:559px; min-height:400px; padding:22px; }
-.inv.a5 .inv-hd-name { font-size: 1.9em; }
-.inv.a5 .inv-tbl th { padding: 8px 4px; font-size: 1.2em; }
-.inv.a5 .inv-tbl td { padding: 8px 4px; font-size: 1.2em; }
-
 /* -------- Totals (A4/A5) -------- */
 .inv-tot { margin-left:auto; width:min(320px,100%); font-family: 'Barlow', sans-serif; font-size:1em; padding-top:10px; display:grid; gap:4px; color: #00337a; }
 .inv-tot-row { display:flex; justify-content:space-between; gap:12px; font-weight: 700; font-size: 1.1em; }
@@ -304,45 +291,62 @@
   font-weight: 600 !important;
 }
 
-/* -------- Print Rules -------- */
-@media print {
-  body { padding:0 !important; background:#fff !important; }
-  .a-side, .no-print, .pos-bar, .hd, .bn, .ft, .toast, .overlay, .drawer, .sugg, .sb { display:none !important; }
-  .a-shell, .a-main { display:block !important; background:#fff !important; }
-  .a-main { padding:0 !important; max-width:none !important; }
-  .inv-page, .inv-wrap { background:#fff !important; padding:0 !important; overflow:visible !important; }
-  .inv.a4, .inv.a5, .inv.thermal, .inv.thermal110 { width:100% !important; padding:0 !important; min-height:0 !important; }
-  
-  /* Ensure backgrounds (like the blue headers and striped rows) print */
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  
-  /* HIDE SPEAKER ICONS ON PRINT */
-  button { display: none !important; }
-  .no-print { display: none !important; }
-}
+/* =====================================================================
+   EXACT PAGE PAGINATION (A4 = 50 rows, A5 = 28 rows)
+   ===================================================================== */
 
-/* --- PERFECT PAGINATION FOR A4 & A5 --- */
-
-/* A4: Force 50 items per page */
-.inv.a4 .inv-tbl td { 
-  padding: 3px 2px; 
-  font-size: 0.95em; 
-  height: 32px; /* Fixed height to fit 50 rows perfectly */
+/* --- A4 SPECIFIC --- */
+.inv.a4 {
+  width: 794px;
+  padding: 10px 20px; /* Reduced outer padding */
 }
-.inv.a4 .inv-tbl th { padding: 4px; font-size: 0.95em; }
-.inv.a4 .inv-img { width: 26px; height: 26px; }
 .inv.a4 .inv-hd-name { font-size: 1.8em; margin: 0; }
+.inv.a4 .inv-tbl th { padding: 2px; font-size: 1em; }
+.inv.a4 .inv-tbl td { padding: 1px 2px; font-size: 0.85em; height: 15px; } /* Very small row height to fit 50 rows */
+.inv.a4 .inv-img { width: 18px; height: 18px; }
+.inv.a4 .inv-tot { margin-top: 4px; padding-top: 4px; }
 
-/* A5: Force 28 items per page */
-.inv.a5 .inv-tbl td { 
-  padding: 2px 1px; 
-  font-size: 0.85em; 
-  height: 34px; /* Fixed height to fit 28 rows perfectly */
+/* --- A5 SPECIFIC --- */
+.inv.a5 {
+  width: 559px;
+  padding: 8px 15px;
 }
-.inv.a5 .inv-tbl th { padding: 3px; font-size: 0.85em; }
-.inv.a5 .inv-img { width: 24px; height: 24px; }
 .inv.a5 .inv-hd-name { font-size: 1.4em; margin: 0; }
-.inv.a5 .inv-tot-row.gt { font-size: 1.2em; }
+.inv.a5 .inv-tbl th { padding: 2px; font-size: 0.85em; }
+.inv.a5 .inv-tbl td { padding: 1px 2px; font-size: 0.8em; height: 21px; } /* Forces 28 rows to fit */
+.inv.a5 .inv-img { width: 16px; height: 16px; }
+.inv.a5 .inv-tot { margin-top: 4px; padding-top: 4px; }
+
+/* --- PAGE BREAK RULES & PRINT HIDING --- */
+@media print {
+  .invoice-page-wrapper {
+    page-break-after: always;
+    page-break-inside: avoid;
+  }
+  .invoice-page-wrapper:last-child {
+    page-break-after: auto;
+  }
+  .inv-tbl tr {
+    page-break-inside: avoid;
+  }
+  
+  /* HIDE SPEAKER BUTTONS ON PRINT */
+  button, .no-print {
+    display: none !important;
+  }
+
+  /* REMOVE PRICE INPUT BORDERS WHEN PRINTING */
+  .price-input {
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    text-align: center !important;
+    font-weight: bold !important;
+    color: #000 !important;
+  }
+}
 
 /* Thermal continuous printing (no page breaks) */
 .inv.thermal110, .inv.thermal { page-break-inside: auto; }
