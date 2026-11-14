@@ -39,7 +39,7 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
 
   const upiLink = `upi://pay?pa=${SHOP.upiId}&pn=${encodeURIComponent(SHOP.name)}&am=${inv.total}&cu=INR&tn=${encodeURIComponent('Bill ' + inv.invoiceNo)}`;
 
-  const ITEMS_PER_PAGE = format === 'a4' ? 50 : format === 'a5' ? 28 : 9999;
+  const ITEMS_PER_PAGE = format === 'a4' ? 55 : format === 'a5' ? 30 : 9999;
   const pages = [];
   if (!isThermal) {
     for (let i = 0; i < inv.items.length; i += ITEMS_PER_PAGE) {
@@ -71,11 +71,10 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                 <div className="th-name">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                     <b>{i.nameEnglish}{i.nameTelugu ? ` / ${i.nameTelugu}` : ''}</b>
-                    {/* FIXED: Added no-print class */}
                     {Capacitor.isNativePlatform() && (
-                      <button
+                      <button 
                         className="no-print"
-                        onClick={() => speakTelugu(`${i.nameTelugu || i.nameEnglish}. Size ${voiceSize(i)}. Quantity ${i.qty}`)}
+                        onClick={() => speakTelugu(`${i.nameTelugu || i.nameEnglish}. Size ${voiceSize(i)}. Quantity ${i.qty}`)} 
                         style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}
                       >
                         🔊
@@ -88,8 +87,13 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                 <div className="th-price">
                   {editable && onUpdateLine ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                      <input type="number" min="0" step="any" value={i.unitPrice} onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })} className="price-input" style={{ width: '55px', textAlign: 'right', fontWeight: 'bold', padding: '2px' }} />
-                      {/* FIXED: Added no-print class */}
+                      <button 
+                        type="button"
+                        onClick={() => onPriceClick && onPriceClick(i)}
+                        style={{ background: 'none', border: 'none', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer', padding: '4px', color: '#000' }}
+                      >
+                        ₹{money2(i.unitPrice || 0).replace('₹', '')}
+                      </button>
                       {Capacitor.isNativePlatform() && (
                         <button className="no-print" onClick={() => speakTelugu(`ధర ${i.unitPrice}`)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>🔊</button>
                       )}
@@ -146,11 +150,10 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                           <b>{i.nameEnglish}{i.nameTelugu ? ` / ${i.nameTelugu}` : ''}</b>
-                          {/* FIXED: Added no-print class */}
                           {Capacitor.isNativePlatform() && (
-                            <button
-                              className="no-print"
-                              onClick={() => speakTelugu(`${i.nameTelugu || i.nameEnglish}. Size ${voiceSize(i)}. Quantity ${i.qty}`)}
+                            <button 
+                              className="no-print" 
+                              onClick={() => speakTelugu(`${i.nameTelugu || i.nameEnglish}. Size ${voiceSize(i)}. Quantity ${i.qty}`)} 
                               style={{ background: '#f4b400', border: 'none', borderRadius: '50%', width: 24, height: 24, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                             >
                               🔊
@@ -163,8 +166,14 @@ export function Invoice({ inv, format, nodeRef, editable = false, onUpdateLine, 
                       <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
                         {editable && onUpdateLine ? (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                            <input type="number" min="0" step="any" value={i.unitPrice} onChange={(e) => onUpdateLine(i.productId, { customPrice: e.target.value })} className="price-input" style={{ width: '70px', textAlign: 'center', fontWeight: 'bold', fontSize: '1.2rem', padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }} />
-                            {/* FIXED: Added no-print class */}
+                            <button 
+                              type="button"
+                              onClick={() => onPriceClick && onPriceClick(i)}
+                              className="price-input"
+                              style={{ fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', border: '1px dashed #ccc', background: '#f9f9f9', color: '#000' }}
+                            >
+                              ₹{money2(i.unitPrice || 0).replace('₹', '')}
+                            </button>
                             {Capacitor.isNativePlatform() && (
                               <button className="no-print" onClick={() => speakTelugu(`ధర ${i.unitPrice}`)} style={{ background: '#f4b400', border: 'none', borderRadius: '50%', width: 24, height: 24, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>🔊</button>
                             )}
@@ -214,7 +223,12 @@ function pageStyle(format) {
 }
 
 export default function InvoiceView({ inv, onNew, onBack, editable = false, onUpdateLine }) {
-  const [format, setFormat] = useState('a4');
+  const totalItems = inv.items.length;
+  const [format, setFormat] = useState(() => {
+    if (totalItems <= 30) return 'a5';
+    return 'a4';
+  });
+
   const [busy, setBusy] = useState(false);
   const [waOpen, setWaOpen] = useState(false);
   const [waPhone, setWaPhone] = useState(inv.customer?.phone || '');
@@ -265,8 +279,16 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
         } else {
           const { FileSharer } = await import('@capgo/capacitor-file-sharer');
           const [{ default: html2canvas }] = await Promise.all([import('html2canvas')]);
-          const canvas = await html2canvas(ref.current, { scale: 0.8, backgroundColor: '#ffffff', useCORS: true });
+          const el = ref.current;
+          if (!el) return;
+          
+          const buttons = el.querySelectorAll('.no-print');
+          buttons.forEach(b => b.style.display = 'none');
+
+          const canvas = await html2canvas(el, { scale: 0.8, backgroundColor: '#ffffff', useCORS: true });
           const base64Data = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+          
+          buttons.forEach(b => b.style.display = '');
 
           await FileSharer.share({
             filename: `${inv.invoiceNo}.jpg`,
@@ -277,13 +299,23 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
         }
       } else {
         const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
-        const canvas = await html2canvas(ref.current, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true });
-        let dataUrl, fileName;
+        const el = ref.current;
+        if (!el) return;
+
+        const buttons = el.querySelectorAll('.no-print');
+        buttons.forEach(b => b.style.display = 'none');
+
+        const canvas = await html2canvas(el, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true });
+        
+        buttons.forEach(b => b.style.display = '');
+        
         if (type === 'image') {
-          dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-          fileName = `${inv.invoiceNo}.jpg`;
+          const link = document.createElement('a');
+          link.download = `${inv.invoiceNo}.jpg`;
+          link.href = canvas.toDataURL('image/jpeg', 0.95);
+          link.click();
         } else {
-          const imgData = canvas.toDataURL('image/jpeg', 0.9);
+          const imgData = canvas.toDataURL('image/jpeg', 0.95);
           let doc, w;
           if (format === 'a4') { w = 210; doc = new jsPDF({ unit: 'mm', format: 'a4' }); }
           else if (format === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
@@ -293,13 +325,8 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
           doc.addImage(imgData, 'JPEG', 0, 0, w, h);
           if (format === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(imgData, 'JPEG', 0, -off, w, h); }
           if (format === 'a5') for (let off = 210; off < h; off += 210) { doc.addPage(); doc.addImage(imgData, 'JPEG', 0, -off, w, h); }
-          dataUrl = doc.output('datauristring');
-          fileName = `${inv.invoiceNo}-${format}.pdf`;
+          doc.save(`${inv.invoiceNo}-${format}.pdf`);
         }
-        const link = document.createElement('a');
-        link.download = fileName;
-        link.href = dataUrl;
-        link.click();
       }
     } catch (e) {
       console.error(e);
@@ -308,17 +335,25 @@ export default function InvoiceView({ inv, onNew, onBack, editable = false, onUp
     setBusy(false);
   };
 
-  const openZoom = (item) => { setZoomItem(item); setZoomValue(item.unitPrice); };
-  const saveZoom = () => { if (onUpdateLine && zoomItem) onUpdateLine(zoomItem.productId, { customPrice: zoomValue }); setZoomItem(null); };
+  const openZoom = (item) => { setZoomItem(item); setZoomValue(item.unitPrice !== undefined && item.unitPrice !== '' ? String(item.unitPrice) : ''); };
+  const saveZoom = () => { if (onUpdateLine && zoomItem) onUpdateLine(zoomItem.productId, { customPrice: zoomValue }); setZoomItem(null); speakTelugu('ధర అప్‌డేట్ చేయబడింది'); };
 
   return (
     <div className="inv-page">
       {zoomItem && (
         <div className="zoom-overlay" onClick={() => setZoomItem(null)}>
           <div className="zoom-box" onClick={e => e.stopPropagation()}>
-            <h2>Enter Price</h2><p style={{ margin: 0, color: '#666' }}>{zoomItem.nameEnglish}</p>
-            <input type="number" autoFocus value={zoomValue} onChange={(e) => setZoomValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveZoom()} />
-            <button className="a-btn primary" onClick={saveZoom}>Save Price</button>
+            <h2>Enter Price</h2>
+            <p style={{ margin: 0, color: '#666' }}>{zoomItem.nameEnglish}</p>
+            <div style={{ background: '#f1f5f9', padding: 10, borderRadius: 8, marginTop: 10 }}>
+              <span style={{ fontSize: '0.9rem', color: '#666' }}>Previous Price: </span>
+              <b style={{ fontSize: '1.2rem', color: '#333' }}>₹{money2(zoomItem.unitPrice || 0).replace('₹', '')}</b>
+            </div>
+            <input type="number" autoFocus value={zoomValue} onChange={(e) => setZoomValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveZoom()} placeholder="Enter new price" />
+            <div className="row" style={{ marginTop: 10, justifyContent: 'center' }}>
+              <button type="button" className="a-btn" style={{ flex: 1 }} onClick={() => setZoomItem(null)}>Cancel</button>
+              <button type="button" className="a-btn primary" style={{ flex: 1 }} onClick={saveZoom}>OK</button>
+            </div>
           </div>
         </div>
       )}

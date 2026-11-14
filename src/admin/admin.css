@@ -108,9 +108,9 @@
 
 /* -------- Header (Centered, Blue) -------- */
 .inv-hd { display:flex; flex-direction:column; align-items:center; text-align:center; border-bottom:2px solid #00337a; padding-bottom:4px; }
-.inv-hd-top { width: 100%; text-align: right; font-weight: bold; font-family: 'Barlow', sans-serif; font-size: 1em; color: #00337a; }
-.inv-hd-name { margin: 2px 0 0 0; font: 900 2.1em/1.1 'Times New Roman', Times, serif; color: #00337a; letter-spacing: .5px; text-transform: uppercase; }
-.inv-hd-addr { font-size: 1em; font-weight: 700; color: #00337a; line-height: 1.3; }
+.inv-hd-top { width: 100%; text-align: right; font-weight: bold; font-family: 'Barlow', sans-serif; font-size: 0.5em; color: #00337a; }
+.inv-hd-name { margin: 2px 0 0 0; font: 900 1.2em/1.1 'Times New Roman', Times, serif; color: #00337a; letter-spacing: .5px; text-transform: uppercase; }
+.inv-hd-addr { font-size: 0.5em; font-weight: 700; color: #00337a; line-height: 1.3; }
 
 /* -------- Meta (Bill No + Date) -------- */
 .inv-meta { display:flex; justify-content: space-between; align-items: flex-end; padding: 4px 0; font-family: 'Barlow', sans-serif; font-size: 1em; font-weight: 700; color: #00337a; border-bottom: 2px solid #00337a; margin-bottom: 2px; }
@@ -129,192 +129,182 @@
 
 /* -------- Totals (A4/A5) -------- */
 .inv-tot { margin-left:auto; width:min(320px,100%); font-family: 'Barlow', sans-serif; font-size:1em; padding-top:10px; display:grid; gap:4px; color: #00337a; }
-.inv-tot-row { display:flex; justify-content:space-between; gap:12px; font-weight: 700; font-size: 1.1em; }
-.inv-tot-row.small { font-size:.9em; color: #00337a; }
+.inv-tot-row { display:flex; justify-content:space-between; gap:12px; font-weight: 700; font-size: 0.9em; }
+.inv-tot-row.small { font-size:.5em; color: #00337a; }
 .inv-tot-row.due { color:#b3261e; }
-.inv-tot-row.gt { font:900 1.6em/1.2 'Times New Roman', serif; border-top:2px solid #00337a; padding-top:6px; margin-top:4px; letter-spacing:.5px; }
+.inv-tot-row.gt { font:900 1.1em/1.2 'Times New Roman', serif; border-top:2px solid #00337a; padding-top:6px; margin-top:4px; letter-spacing:.5px; }
 
 /* -------- Footer & QR (A4/A5) -------- */
 .inv-ft-container { display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #00337a; padding-top: 8px; margin-top: 10px; font-family: 'Barlow', sans-serif; color: #00337a; }
-.inv-ft-left { text-align: left; display: grid; gap: 2px; font-size: 0.9em; }
-.inv-ft-thanks { font-size:1.15em; font-weight: bold; }
+.inv-ft-left { text-align: left; display: grid; gap: 2px; font-size: 0.6em; }
+.inv-ft-thanks { font-size:0.5em; font-weight: bold; }
 .inv-ft-name { font-weight:700; letter-spacing:.5px; text-transform:uppercase; }
 .inv-ft-qr { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.inv-qr-text { font-size: 0.7em; font-weight: 600; color: #555; text-transform: uppercase; }
+.inv-qr-text { font-size: 0.5em; font-weight: 600; color: #555; text-transform: uppercase; }
 
 /* =====================================================================
    THERMAL ONLY (110mm & 80mm) — PERFECT FIT, SMALLER HEADER
    ===================================================================== */
 
-.inv.thermal110, .inv.thermal { 
-  width: 100% !important; 
-  padding: 0 !important; 
-  font-family: 'Barlow', sans-serif !important; 
-  color: #000 !important; 
-  gap: 0 !important; 
-  line-height: 1.15 !important; 
+.inv.thermal110, .inv.thermal {
+  width: 100% !important;
+  padding: 0 !important;
+  font-family: 'Barlow', sans-serif !important;
+  color: #000 !important;
+  gap: 0 !important;
+  line-height: 1.15 !important;
 }
 
-/* Smaller Header for Thermal */
 .inv.thermal110 .inv-hd, .inv.thermal .inv-hd { border-bottom: 1.5px solid #000 !important; padding-bottom: 2px !important; margin-bottom: 2px !important; display: flex !important; flex-direction: column !important; align-items: center !important; text-align: center !important; }
 .inv.thermal110 .inv-hd-name, .inv.thermal .inv-hd-name { font-size: 1em !important; color: #000 !important; margin: 0 !important; line-height: 1.1 !important; }
 .inv.thermal110 .inv-hd-addr, .inv.thermal .inv-hd-addr { font-size: .75em !important; color: #000 !important; line-height: 1.1 !important; }
 .inv.thermal110 .inv-hd-top, .inv.thermal .inv-hd-top { color: #000 !important; font-size: .75em !important; text-align: center !important; width: 100% !important; }
 
-/* Meta (Bill No / Date) */
-.inv.thermal110 .inv-meta, .inv.thermal .inv-meta { 
-  border-bottom: 1px dashed #000 !important; 
-  color: #000 !important; 
-  display: flex !important; 
-  flex-direction: column !important; 
-  align-items: flex-start !important; 
-  gap: 0 !important; 
-  padding: 2px 0 !important; 
+.inv.thermal110 .inv-meta, .inv.thermal .inv-meta {
+  border-bottom: 1px dashed #000 !important;
+  color: #000 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 0 !important;
+  padding: 2px 0 !important;
   font-size: 0.8em !important;
 }
 .inv.thermal110 .inv-meta-date, .inv.thermal .inv-meta-date { margin-left: 0 !important; }
 
-/* Items Container */
-.inv.thermal110 .th-items, .inv.thermal .th-items { 
-  border-top: none !important; 
-  padding-top: 2px !important; 
+.inv.thermal110 .th-items, .inv.thermal .th-items {
+  border-top: none !important;
+  padding-top: 2px !important;
   margin-top: 2px !important;
   display: flex !important;
   flex-direction: column !important;
 }
 
-/* Table Header Row */
-.inv.thermal110 .th-header-row, .inv.thermal .th-header-row { 
-  display: grid !important; 
-  grid-template-columns: 18px 30px minmax(0, 1fr) 36px 60px !important; 
-  font-weight: 800 !important; 
-  font-size: 11px !important; 
-  border-bottom: 1.5px solid #000 !important; 
-  padding-bottom: 2px !important; 
-  margin-bottom: 4px !important; 
-  text-align: center !important; 
+.inv.thermal110 .th-header-row, .inv.thermal .th-header-row {
+  display: grid !important;
+  grid-template-columns: 18px 30px minmax(0, 1fr) 36px 60px !important;
+  font-weight: 800 !important;
+  font-size: 11px !important;
+  border-bottom: 1.5px solid #000 !important;
+  padding-bottom: 2px !important;
+  margin-bottom: 4px !important;
+  text-align: center !important;
   align-items: center !important;
 }
 .inv.thermal110 .th-header-row span:nth-child(3), .inv.thermal .th-header-row span:nth-child(3) { text-align: left !important; padding-left: 4px !important; }
 .inv.thermal110 .th-header-row span:nth-child(5), .inv.thermal .th-header-row span:nth-child(5) { text-align: right !important; padding-right: 2px !important; }
 
-/* Data Rows */
-.inv.thermal110 .th-row, .inv.thermal .th-row { 
-  display: grid !important; 
-  grid-template-columns: 18px 30px minmax(0, 1fr) 36px 60px !important; 
-  gap: 0 !important; 
-  padding: 6px 0 !important; 
-  border-bottom: 1px dotted #000 !important; 
-  align-items: center !important; 
-  text-align: center !important; 
+.inv.thermal110 .th-row, .inv.thermal .th-row {
+  display: grid !important;
+  grid-template-columns: 18px 30px minmax(0, 1fr) 36px 60px !important;
+  gap: 0 !important;
+  padding: 6px 0 !important;
+  border-bottom: 1px dotted #000 !important;
+  align-items: center !important;
+  text-align: center !important;
 }
 .inv.thermal110 .th-row:last-child, .inv.thermal .th-row:last-child {
   border-bottom: 1.5px solid #000 !important;
 }
 
-/* Product Name */
-.inv.thermal110 .th-name, .inv.thermal .th-name { 
-  text-align: left !important; 
+.inv.thermal110 .th-name, .inv.thermal .th-name {
+  text-align: left !important;
   font-size: 15px !important;
-  line-height: 1.15 !important; 
+  line-height: 1.15 !important;
   padding-left: 4px !important;
   word-break: break-word !important;
 }
-.inv.thermal110 .th-size, .inv.thermal .th-size { 
-  font-size: 15px !important; 
-  color: #000 !important; 
+.inv.thermal110 .th-size, .inv.thermal .th-size {
+  font-size: 15px !important;
+  color: #000 !important;
   font-weight: 600 !important;
   margin-top: 1px !important;
 }
 
-/* Images */
-.inv.thermal110 .th-img img, .inv.thermal .th-img img { 
-  width: 26px !important; 
-  height: 26px !important; 
-  object-fit: cover !important; 
+.inv.thermal110 .th-img img, .inv.thermal .th-img img {
+  width: 26px !important;
+  height: 26px !important;
+  object-fit: cover !important;
   border: 1px solid #000 !important;
-  margin: 0 auto !important; 
-  display: block !important; 
+  margin: 0 auto !important;
+  display: block !important;
 }
 
-/* QTY & PRICE (Massive and perfectly aligned) */
-.inv.thermal110 .th-qty, .inv.thermal .th-qty { 
-  font-size: 16px !important; 
-  font-weight: 900 !important; 
+.inv.thermal110 .th-qty, .inv.thermal .th-qty {
+  font-size: 16px !important;
+  font-weight: 900 !important;
   text-align: center !important;
 }
-.inv.thermal110 .th-price, .inv.thermal .th-price { 
-  text-align: right !important; 
-  font-size: 16px !important; 
-  font-weight: 900 !important; 
+.inv.thermal110 .th-price, .inv.thermal .th-price {
+  text-align: right !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
   padding-right: 2px !important;
 }
 
-/* Totals */
-.inv.thermal110 .inv-tot, .inv.thermal .inv-tot { 
-  width: 100% !important; 
-  color: #000 !important; 
-  border-top: none !important; 
-  padding-top: 2px !important; 
-  margin-top: 4px !important; 
+.inv.thermal110 .inv-tot, .inv.thermal .inv-tot {
+  width: 100% !important;
+  color: #000 !important;
+  border-top: none !important;
+  padding-top: 2px !important;
+  margin-top: 4px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 2px !important;
 }
-.inv.thermal110 .inv-tot-row, .inv.thermal .inv-tot-row { 
+.inv.thermal110 .inv-tot-row, .inv.thermal .inv-tot-row {
   display: flex !important;
   justify-content: space-between !important;
-  font-size: 14px !important; 
+  font-size: 14px !important;
   font-weight: 600 !important;
 }
-.inv.thermal110 .inv-tot-row.gt, .inv.thermal .inv-tot-row.gt { 
-  font-size: 1.6em !important; 
+.inv.thermal110 .inv-tot-row.gt, .inv.thermal .inv-tot-row.gt {
+  font-size: 1.6em !important;
   font-weight: 900 !important;
-  border-top: 1.5px solid #000 !important; 
-  padding-top: 4px !important; 
-  color: #000 !important; 
-  margin-top: 2px !important; 
+  border-top: 1.5px solid #000 !important;
+  padding-top: 4px !important;
+  color: #000 !important;
+  margin-top: 2px !important;
 }
 
-/* Footer */
-.inv.thermal110 .inv-ft-container, .inv.thermal .inv-ft-container { 
-  border-top: 1.5px solid #000 !important; 
-  color: #000 !important; 
+.inv.thermal110 .inv-ft-container, .inv.thermal .inv-ft-container {
+  border-top: 1.5px solid #000 !important;
+  color: #000 !important;
   margin-top: 6px !important;
   padding-top: 4px !important;
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
 }
-.inv.thermal110 .inv-ft-left, .inv.thermal .inv-ft-left { 
-  font-size: 10px !important; 
+.inv.thermal110 .inv-ft-left, .inv.thermal .inv-ft-left {
+  font-size: 10px !important;
   font-weight: 600 !important;
 }
 
 /* =====================================================================
-   EXACT PAGE PAGINATION (A4 = 50 rows, A5 = 28 rows)
+   EXACT PAGE PAGINATION (A4 = 55 rows, A5 = 30 rows)
    ===================================================================== */
 
 /* --- A4 SPECIFIC --- */
 .inv.a4 {
   width: 794px;
-  padding: 10px 20px; /* Reduced outer padding */
+  padding: 0px;
 }
-.inv.a4 .inv-hd-name { font-size: 1.8em; margin: 0; }
-.inv.a4 .inv-tbl th { padding: 2px; font-size: 1em; }
-.inv.a4 .inv-tbl td { padding: 1px 2px; font-size: 0.85em; height: 15px; } /* Very small row height to fit 50 rows */
-.inv.a4 .inv-img { width: 18px; height: 18px; }
-.inv.a4 .inv-tot { margin-top: 4px; padding-top: 4px; }
+.inv.a4 .inv-hd-name { font-size: 1.4em; margin: 0; }
+.inv.a4 .inv-tbl th { padding: 2px; font-size: 0.8em; }
+.inv.a4 .inv-tbl td { padding: 0px; font-size: 0.65em; height: 4px; }
+.inv.a4 .inv-img { width: 15px; height: 15px; }
+.inv.a4 .inv-tot { margin-top: 1px; padding-top: 1px; }
 
 /* --- A5 SPECIFIC --- */
 .inv.a5 {
   width: 559px;
-  padding: 8px 15px;
+  padding: 0px;
 }
-.inv.a5 .inv-hd-name { font-size: 1.4em; margin: 0; }
-.inv.a5 .inv-tbl th { padding: 2px; font-size: 0.85em; }
-.inv.a5 .inv-tbl td { padding: 1px 2px; font-size: 0.8em; height: 21px; } /* Forces 28 rows to fit */
-.inv.a5 .inv-img { width: 16px; height: 16px; }
+.inv.a5 .inv-hd-name { font-size: 1.0em; margin: 0; }
+.inv.a5 .inv-tbl th { padding: 3px; font-size: 0.75em; }
+.inv.a5 .inv-tbl td { padding: 0px; font-size: 0.65em; height: 4px; }
+.inv.a5 .inv-img { width: 15px; height: 15px; }
 .inv.a5 .inv-tot { margin-top: 4px; padding-top: 4px; }
 
 /* --- PAGE BREAK RULES & PRINT HIDING --- */
@@ -329,7 +319,7 @@
   .inv-tbl tr {
     page-break-inside: avoid;
   }
-  
+
   /* HIDE SPEAKER BUTTONS ON PRINT */
   button, .no-print {
     display: none !important;
@@ -402,4 +392,139 @@
     -webkit-appearance: none;
     -moz-appearance: textfield;
   }
+}
+
+/* =====================================================================
+   ★ PRINT PARITY WITH PDF — A4 / A5 EXACT MATCH (NEW BLOCK)
+   Append this at the very bottom. Do NOT modify anything above.
+   ===================================================================== */
+@media print {
+
+  /* ---- Reset document chrome so paper starts at 0,0 ---- */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    width: auto !important;
+    height: auto !important;
+  }
+
+  /* ---- Kill app shell visuals that shift content ---- */
+  .a-shell,
+  .a-main,
+  .inv-page,
+  .inv-wrap,
+  .toolbar {
+    display: block !important;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    max-width: none !important;
+    min-height: 0 !important;
+  }
+
+  /* ---- Sidebar / toolbars / buttons never print ---- */
+  .a-side,
+  .a-head,
+  .a-btn,
+  .tabs,
+  .pos-tabs,
+  .seg2,
+  .a-bar,
+  .pos-bar,
+  .no-print,
+  button {
+    display: none !important;
+  }
+
+  /* ---- Remove any transform / zoom / shadow from invoice ---- */
+  .inv,
+  .inv * {
+    transform: none !important;
+    zoom: 1 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* ---- Force exact physical paper width (mm) ---- */
+  .inv.a4 {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+  .inv.a5 {
+    width: 148mm !important;
+    min-height: 210mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+  .inv.thermal110 {
+    width: 110mm !important;
+    margin: 0 !important;
+  }
+  .inv.thermal {
+    width: 80mm !important;
+    margin: 0 !important;
+  }
+
+  /* ---- Keep blue header + stripes in the PDF/print ---- */
+  .inv,
+  .inv * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .inv-tbl th {
+    background: #00337a !important;
+    color: #fff !important;
+  }
+  .inv-tbl tbody tr:nth-child(even) {
+    background: #e6f0fa !important;
+  }
+  .inv-tbl tbody tr:nth-child(odd) {
+    background: #ffffff !important;
+  }
+
+  /* ---- Page break rules (multi-page invoices) ---- */
+  .invoice-page-wrapper {
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .invoice-page-wrapper:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .inv-tbl tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .inv-tbl thead {
+    display: table-header-group; /* repeat header on page 2+ */
+  }
+  .inv-tot {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* ---- A4/A5 keep exact pixel row heights from screen ---- */
+  .inv.a4 .inv-tbl td { height: 4px !important; }
+  .inv.a5 .inv-tbl td { height: 4px !important; }
+
+  /* ---- Hide any screen-only scrollbars in print ---- */
+  ::-webkit-scrollbar { display: none !important; }
+
+  /* ---- Remove link underlines from printed text ---- */
+  a { text-decoration: none !important; color: #000 !important; }
+}
+
+/* ---- @page size fallback (overridden by JS printBill()) ---- */
+@media print {
+  @page { size: auto; margin: 0; }
 }

@@ -262,14 +262,14 @@ const printPageStyle = (fmt) => {
 };
 
 export function CartPage() {
-  const { lines, loaded, t, clearCart, flash } = useApp();
-  const { settings } = useAdmin();
-  const [view, setView] = useState('cart');
+  const { lines, loaded, t, clearCart, flash } = useApp(); 
+  const { settings } = useAdmin();              
+  const [view, setView] = useState('cart');     
   const [printFmt, setPrintFmt] = useState('a4');
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
-
+  
   const [draftLines, setDraftLines] = useState([]);
   const [dType, setDType] = useState('percent');
   const [dVal, setDVal] = useState('');
@@ -279,7 +279,7 @@ export function CartPage() {
   const [zoomValue, setZoomValue] = useState('');
 
   useEffect(() => {
-    if (Capacitor.isNativePlatform() || window.innerWidth < 600) setPrintFmt('thermal');
+    if (Capacitor.isNativePlatform() || window.innerWidth < 600) setPrintFmt('thermal'); 
   }, []);
 
   // --- SWIPE BACK HANDLING FOR BILL PREVIEW ---
@@ -329,19 +329,20 @@ export function CartPage() {
     setZoomItem(item);
     setZoomValue(item.unitPrice !== undefined && item.unitPrice !== '' ? String(item.unitPrice) : '');
   };
-
+  
   const saveZoom = () => {
     if (zoomItem) {
       updateDraftLine(zoomItem.productId, { customPrice: zoomValue });
+      speakTelugu('ధర అప్‌డేట్ చేయబడింది'); // "Price Updated"
     }
     setZoomItem(null);
   };
   // ---------------------------
 
-  const doPrint = () => {
+  const doPrint = () => { 
     speakTelugu('ప్రింట్ చేస్తున్నాము');
-    printPageStyle(printFmt);
-    setTimeout(() => window.print(), 100);
+    printPageStyle(printFmt); 
+    setTimeout(() => window.print(), 100); 
   };
 
   // --- SAVE BILL TO FIREBASE (NO DUPLICATES, NO LARGE IMAGES) ---
@@ -349,7 +350,7 @@ export function CartPage() {
     if (saving || !draft) return;
     setSaving(true);
     speakTelugu('బిల్లు సేవ్ అవుతోంది');
-
+    
     try {
       const cleanItems = draft.items.map(item => {
         const { billImageUrl, ...rest } = item;
@@ -362,7 +363,7 @@ export function CartPage() {
 
       const payload = {
         ...draft,
-        items: cleanItems,
+        items: cleanItems, 
         status: 'completed',
         createdAt: isUpdate ? existing.data().createdAt : serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -400,10 +401,17 @@ export function CartPage() {
           const [{ default: html2canvas }] = await Promise.all([import('html2canvas')]);
           const el = document.querySelector('.inv');
           if (!el) return;
+          
+          // Temporarily hide the speaker icons for the image capture
+          const buttons = el.querySelectorAll('.no-print');
+          buttons.forEach(b => b.style.display = 'none');
 
           // Lower scale to prevent memory crash
           const canvas = await html2canvas(el, { scale: 0.8, backgroundColor: '#ffffff', useCORS: true });
           const base64Data = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+          
+          // Restore the buttons
+          buttons.forEach(b => b.style.display = '');
 
           await FileSharer.share({
             filename: `${draft.invoiceNo}.jpg`,
@@ -417,8 +425,16 @@ export function CartPage() {
         const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
         const el = document.querySelector('.inv');
         if (!el) return;
-        const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
 
+        // Temporarily hide the speaker icons for the image capture
+        const buttons = el.querySelectorAll('.no-print');
+        buttons.forEach(b => b.style.display = 'none');
+
+        const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        
+        // Restore the buttons
+        buttons.forEach(b => b.style.display = '');
+        
         if (type === 'image') {
           const link = document.createElement('a');
           link.download = `${draft.invoiceNo}.jpg`;
@@ -431,7 +447,7 @@ export function CartPage() {
           else if (printFmt === 'a5') { w = 148; doc = new jsPDF({ unit: 'mm', format: 'a5' }); }
           else if (printFmt === 'thermal110') { w = 110; doc = new jsPDF({ unit: 'mm', format: [110, 200] }); }
           else { w = 80; doc = new jsPDF({ unit: 'mm', format: [80, 200] }); }
-
+          
           const h = (canvas.height * w) / canvas.width;
           doc.addImage(img, 'JPEG', 0, 0, w, h);
           if (printFmt === 'a4') for (let off = 297; off < h; off += 297) { doc.addPage(); doc.addImage(img, 'JPEG', 0, -off, w, h); }
@@ -450,14 +466,14 @@ export function CartPage() {
   const sendWhatsApp = () => {
     speakTelugu('వాట్సాప్ తెరుస్తున్నాము');
     let phone = window.prompt("Enter customer's WhatsApp number:");
-    if (!phone) return;
-
+    if (!phone) return; 
+    
     let cleanPhone = phone.replace(/[^0-9]/g, '');
     if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
     if (cleanPhone.length < 10) return alert("Please enter a valid phone number.");
 
     let msg = `*${draft.shop.name}*\n${draft.shop.address || ''}\nPh: ${draft.shop.phone || ''}\n---------------------------------\n*Bill No:* ${draft.invoiceNo}\n*Date:* ${new Date().toLocaleDateString('en-IN')}\n---------------------------------\n\n`;
-
+    
     draft.items.forEach((item, index) => {
       msg += `${index + 1}. *${item.nameEnglish}*${item.nameTelugu ? ` / ${item.nameTelugu}` : ''}\n`;
       msg += `   Qty: ${item.qty} x ₹${money2(item.unitPrice).replace('₹', '')} = *₹${money2(item.amount).replace('₹', '')}*\n\n`;
@@ -487,8 +503,8 @@ export function CartPage() {
         <div className="a-head">
           <h1>{t('cart')}</h1>
           {/* CLEAR CART BUTTON */}
-          <button
-            className="a-btn danger"
+          <button 
+            className="a-btn danger" 
             onClick={() => {
               speakTelugu('కార్ట్ లోని అన్ని వస్తువులు తొలగించాలా?');
               setTimeout(() => {
@@ -497,15 +513,15 @@ export function CartPage() {
                   clearCart();
                   flash('Cart cleared successfully!');
                 }
-              }, 500);
+              }, 500); 
             }}
           >
             Clear Cart
           </button>
         </div>
-
+        
         {lines.map((l) => <CartLine key={l.product.id} line={l} />)}
-
+        
         <div className="cols" style={{ marginTop: 15 }}>
           <label>Discount
             <span className="row">
@@ -525,10 +541,10 @@ export function CartPage() {
           <button
             className="btn"
             style={{ marginLeft: 'auto' }}
-            onClick={() => {
+            onClick={() => { 
               speakTelugu('బిల్లు చూపిస్తున్నాము');
-              setPrintFmt(Capacitor.isNativePlatform() || window.innerWidth < 600 ? 'thermal' : 'a5');
-              openBillPreview();
+              setPrintFmt(Capacitor.isNativePlatform() || window.innerWidth < 600 ? 'thermal' : 'a5'); 
+              openBillPreview(); 
             }}
           >
             VIEW BILL →
@@ -549,14 +565,26 @@ export function CartPage() {
           <div className="zoom-box" onClick={e => e.stopPropagation()}>
             <h2>Enter Price</h2>
             <p style={{ margin: 0, color: '#666' }}>{zoomItem.nameEnglish}</p>
-            <input
-              type="number"
+            
+            {/* SHOW PREVIOUS PRICE */}
+            <div style={{ background: '#f1f5f9', padding: 10, borderRadius: 8, marginTop: 10 }}>
+              <span style={{ fontSize: '0.9rem', color: '#666' }}>Previous Price: </span>
+              <b style={{ fontSize: '1.2rem', color: '#333' }}>₹{money2(zoomItem.unitPrice || 0).replace('₹', '')}</b>
+            </div>
+
+            <input 
+              type="number" 
               autoFocus
-              value={zoomValue}
-              onChange={(e) => setZoomValue(e.target.value)}
+              value={zoomValue} 
+              onChange={(e) => setZoomValue(e.target.value)} 
               onKeyDown={(e) => e.key === 'Enter' && saveZoom()}
+              placeholder="Enter new price"
             />
-            <button className="a-btn primary" onClick={saveZoom}>Save Price</button>
+            
+            <div className="row" style={{ marginTop: 10, justifyContent: 'center' }}>
+              <button type="button" className="a-btn" style={{ flex: 1 }} onClick={() => setZoomItem(null)}>Cancel</button>
+              <button type="button" className="a-btn primary" style={{ flex: 1 }} onClick={saveZoom}>OK</button>
+            </div>
           </div>
         </div>
       )}
@@ -566,7 +594,7 @@ export function CartPage() {
           <h1>Bill preview</h1>
           <button className="a-btn" onClick={() => { speakTelugu('వెనుకకు'); closeBillPreview(); }}>← Back to cart</button>
         </div>
-
+        
         <div className="row" style={{ marginBottom: 8 }}>
           <div className="seg2">
             {[['a4', 'A4'], ['a5', 'A5'], ['thermal110', '110 mm'], ['thermal', '80 mm']].map(([f, l]) => (
@@ -574,11 +602,11 @@ export function CartPage() {
             ))}
           </div>
           <button className="a-btn primary" onClick={doPrint}>🖨️ PRINT BILL</button>
-
+          
           <button className="a-btn" disabled={saving} onClick={saveBillToAdmin} style={{ backgroundColor: '#00337a', color: '#fff', borderColor: '#00337a', fontWeight: 'bold' }}>
             {saving ? 'Saving...' : '💾 Save to Admin'}
           </button>
-
+          
           <button className="a-btn" disabled={busy} onClick={() => downloadFile('pdf')}>{busy ? 'Wait…' : '⬇️ PDF'}</button>
           <button className="a-btn" disabled={busy} onClick={() => downloadFile('image')}>{busy ? 'Wait…' : '⬇️ Image'}</button>
 
@@ -588,12 +616,12 @@ export function CartPage() {
       </div>
 
       <div className="inv-wrap">
-        <Invoice
-          inv={draft}
-          format={printFmt}
-          editable={true}
-          onUpdateLine={updateDraftLine}
-          onPriceClick={openZoom}
+        <Invoice 
+          inv={draft} 
+          format={printFmt} 
+          editable={true} 
+          onUpdateLine={updateDraftLine} 
+          onPriceClick={openZoom} 
         />
       </div>
     </div>
